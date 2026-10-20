@@ -36,6 +36,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false,
       },
+      rol: {
+        type: DataTypes.STRING(20),
+        allowNull: false,
+        defaultValue: 'secretaria',
+        validate: {
+          isIn: [['secretaria', 'administrador']],
+        },
+      },
       verificado: {
         type: DataTypes.BOOLEAN,
         allowNull: false,
@@ -45,11 +53,26 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      codigo_expira_en: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      codigo_intentos: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
+      token_version: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 0,
+      },
       fecha_creacion: {
         type: DataTypes.DATE,
         allowNull: false,
         defaultValue: DataTypes.NOW,
       },
+      /** SHA-256 (hex) del token de recuperación; el token en claro solo viaja por correo. */
       reset_token_hash: {
         type: DataTypes.STRING,
         allowNull: true,

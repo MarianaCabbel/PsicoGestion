@@ -1,10 +1,46 @@
-const Joi = require('joi');
+const crypto = require('crypto');
+const { getExtraInstitutionalDomains } = require('../config/env');
 
-const passwordSchema = Joi.string()
-  .min(8)
-  .max(25)
-  .pattern(/(?=.*\d)(?=.*[A-Z])(?=.*[^A-Za-z0-9])/)
-  .required();
+/** Intentos fallidos permitidos por código de verificación antes de invalidarlo. */
+const MAX_VERIFICATION_ATTEMPTS = 3;
+
+/** Vida del código de verificación enviado por correo (CP-UNI-08). */
+const VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
+
+/** Vida del enlace de restablecimiento de contraseña (CP-UNI-27). */
+const RESET_LINK_TTL_MS = 10 * 60 * 1000;
+
+/**
+ * Correo institucional: cualquier subdominio que termine en uady.mx, o un dominio
+ * adicional autorizado en DOMINIOS_INSTITUCIONALES_EXTRA.
+ */
+function isInstitutionalEmail(value) {
+  const email = String(value || '').trim();
+
+  if (/^[^\s@]+@([a-z0-9-]+\.)*uady\.mx$/i.test(email)) {
+    return true;
+  }
+
+  const domain = email.split('@')[1];
+  if (!domain || email.split('@').length !== 2 || /\s/.test(email)) {
+    return false;
+  }
+
+  return getExtraInstitutionalDomains().includes(domain.toLowerCase());
+}
+
+function normalizePhone(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+/** Teléfono de 10 dígitos, ignorando la puntuación de separación. */
+function isValidPhone(value) {
+  return /^\d{10}$/.test(normalizePhone(value));
+}
+
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
 
 function validatePassword(password) {
   const errors = [];
@@ -34,15 +70,15 @@ function validatePassword(password) {
 
 function validateUniqueCredentials({ correo_institucional, telefono, existingUsers = [] }) {
   const errors = [];
-  const normalizedEmail = String(correo_institucional || '').trim().toLowerCase();
-  const normalizedPhone = String(telefono || '').trim();
+  const normalizedEmail = normalizeEmail(correo_institucional);
+  const normalizedPhone = normalizePhone(telefono);
 
   const emailExists = existingUsers.some(
-    (user) => String(user.correo_institucional || '').trim().toLowerCase() === normalizedEmail
+    (user) => normalizeEmail(user.correo_institucional) === normalizedEmail
   );
 
   const phoneExists = existingUsers.some(
-    (user) => String(user.telefono || '').trim() === normalizedPhone
+    (user) => normalizePhone(user.telefono) === normalizedPhone
   );
 
   if (emailExists) {
@@ -59,24 +95,54 @@ function validateUniqueCredentials({ correo_institucional, telefono, existingUse
   };
 }
 
+/** Código de 6 dígitos con generador criptográfico (no Math.random). */
 function generateVerificationCode() {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  return String(crypto.randomInt(100000, 1000000));
 }
 
+/** Comparación en tiempo constante para no filtrar información por temporización. */
 function verifyVerificationCode(inputCode, storedCode) {
-  return String(inputCode || '').trim() === String(storedCode || '').trim();
+  const input = Buffer.from(String(inputCode || '').trim());
+  const stored = Buffer.from(String(storedCode || '').trim());
+
+  if (input.length === 0 || input.length !== stored.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(input, stored);
+}
+
+function isVerificationCodeExpired(expiryDate) {
+  if (!expiryDate) return false;
+  return new Date(expiryDate).getTime() <= Date.now();
 }
 
 function generateResetToken() {
-  const crypto = require('crypto');
   return crypto.randomBytes(32).toString('hex');
 }
 
+/**
+ * Huella SHA-256 del token de recuperación. Solo la huella se guarda en la base
+ * de datos: el token es de 256 bits aleatorios, por lo que un hash rápido es
+ * suficiente (no hay diccionario que atacar) y permite buscar por igualdad.
+ */
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
 module.exports = {
-  passwordSchema,
+  MAX_VERIFICATION_ATTEMPTS,
+  hashResetToken,
+  VERIFICATION_CODE_TTL_MS,
+  RESET_LINK_TTL_MS,
+  isInstitutionalEmail,
+  normalizePhone,
+  isValidPhone,
+  normalizeEmail,
   validatePassword,
   validateUniqueCredentials,
   generateVerificationCode,
   verifyVerificationCode,
+  isVerificationCodeExpired,
   generateResetToken,
 };

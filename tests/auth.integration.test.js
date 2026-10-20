@@ -1,6 +1,7 @@
 const request = require('supertest');
 const { sequelize, User } = require('../src/config/database');
 const app = require('../src/app');
+const { ultimoTokenRecuperacion } = require('./helpers');
 
 describe('Flujos de autenticación', () => {
   beforeAll(async () => {
@@ -9,7 +10,7 @@ describe('Flujos de autenticación', () => {
   });
 
   afterEach(async () => {
-    await User.destroy({ where: {}, truncate: true });
+    await User.destroy({ where: {} });
   });
 
   afterAll(async () => {
@@ -21,8 +22,8 @@ describe('Flujos de autenticación', () => {
       .post('/api/auth/registro')
       .send({
         nombre_completo: 'Ana López',
-        correo_institucional: 'ana@psicogestion.com',
-        telefono: '987654321',
+        correo_institucional: 'ana@correo.uady.mx',
+        telefono: '9876543210',
         password: 'Password123!',
         confirmar_password: 'Password123!',
       });
@@ -30,13 +31,13 @@ describe('Flujos de autenticación', () => {
     expect(registro.status).toBe(201);
     expect(registro.body.success).toBe(true);
 
-    const user = await User.findOne({ where: { correo_institucional: 'ana@psicogestion.com' } });
+    const user = await User.findOne({ where: { correo_institucional: 'ana@correo.uady.mx' } });
     expect(user.verificado).toBe(false);
 
     const verification = await request(app)
       .post('/api/auth/verificar')
       .send({
-        correo_institucional: 'ana@psicogestion.com',
+        correo_institucional: 'ana@correo.uady.mx',
         codigo_verificacion: user.codigo_verificacion,
       });
 
@@ -49,7 +50,7 @@ describe('Flujos de autenticación', () => {
     const login = await request(app)
       .post('/api/auth/login')
       .send({
-        correo_institucional: 'ana@psicogestion.com',
+        correo_institucional: 'ana@correo.uady.mx',
         password: 'Password123!',
       });
 
@@ -63,25 +64,31 @@ describe('Flujos de autenticación', () => {
 
     expect(logout.status).toBe(200);
     expect(logout.body.success).toBe(true);
+
+    const reuse = await request(app)
+      .post('/api/auth/logout')
+      .set('Authorization', `Bearer ${login.body.data.token}`);
+
+    expect(reuse.status).toBe(401);
   });
 
   test('recuperación -> restablecimiento', async () => {
     await User.create({
       nombre_completo: 'Luis Pérez',
-      correo_institucional: 'luis@psicogestion.com',
-      telefono: '123456789',
+      correo_institucional: 'luis@correo.uady.mx',
+      telefono: '1234567890',
       password_hash: '$2b$10$9e2o6v4P7lqZAZD4bR9UYeq1G1YyevV4vR.Q3dR3lPTd2XxKHVxG6',
       verificado: true,
     });
 
     const recover = await request(app)
       .post('/api/auth/recuperar')
-      .send({ correo_institucional: 'luis@psicogestion.com' });
+      .send({ correo_institucional: 'luis@correo.uady.mx' });
 
     expect(recover.status).toBe(200);
     expect(recover.body.success).toBe(true);
 
-    const token = recover.body.data.token;
+    const token = ultimoTokenRecuperacion('luis@correo.uady.mx');
     expect(token).toBeTruthy();
 
     const reset = await request(app)
