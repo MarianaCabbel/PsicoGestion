@@ -35,4 +35,8 @@ function conTransaccion(fn) {
   return corrida;
 }
 
-module.exports = { conTransaccion };
+function esperarTransaccionesPendientes() {
+  return cola;
+}
+
+module.exports = { conTransaccion, esperarTransaccionesPendientes };

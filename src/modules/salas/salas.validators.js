@@ -8,7 +8,7 @@ const crearSalaSchema = z.object({
   nombre: textoRequerido('El nombre de la sala es obligatorio.', (base) =>
     base
       .max(SALA_NOMBRE_MAXIMO, `El nombre de la sala no puede exceder ${SALA_NOMBRE_MAXIMO} caracteres.`)
-      .regex(/^[\p{L}\p{N} .\-]+$/u, 'El nombre de la sala solo puede contener letras, números, espacios, punto y guion.')
+      .regex(/^[\p{L}\p{N} .-]+$/u, 'El nombre de la sala solo puede contener letras, números, espacios, punto y guion.')
       .transform((valor) => valor.replace(/\s+/g, ' '))
   ),
 });

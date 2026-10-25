@@ -15,7 +15,6 @@ function crearMigrator(sequelize) {
     migrations: {
       glob: ['*.js', { cwd: MIGRATIONS_DIR }],
       resolve: ({ name, path: migrationPath }) => {
-        // eslint-disable-next-line global-require, import/no-dynamic-require
         const migration = require(migrationPath);
 
         return {

@@ -26,7 +26,7 @@ async function authenticateToken(req, res, next) {
   let decoded;
   try {
     decoded = jwt.verify(token, getJwtSecret());
-  } catch (error) {
+  } catch (_error) {
     return next(new AppError('Token inválido o expirado.', 401));
   }
 

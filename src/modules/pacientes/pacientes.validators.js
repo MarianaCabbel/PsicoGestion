@@ -22,11 +22,11 @@ const campos = {
         if (!resultado.valido) {
           ctx.addIssue({ code: 'custom', message: resultado.error });
         }
-      })
+      }),
   ),
   sexo: z.preprocess(
     (valor) => (typeof valor === 'string' ? valor.trim().toUpperCase() : valor),
-    z.enum(['H', 'M', 'X'], { error: 'El sexo debe ser H, M o X.' })
+    z.enum(['H', 'M', 'X'], { error: 'El sexo debe ser H, M o X.' }),
   ),
   fecha_nacimiento: fechaCalendario('La fecha de nacimiento'),
   telefono: telefonoDiezDigitos('El teléfono'),
@@ -63,7 +63,9 @@ const crearPacienteSchema = baseSchema.superRefine((datos, ctx) => {
 /** Actualización parcial: al menos un campo; la consistencia completa se revalida en el servicio. */
 const actualizarPacienteSchema = baseSchema
   .partial()
-  .refine((datos) => Object.keys(datos).length > 0, { message: 'Envía al menos un campo para actualizar.' })
+  .refine((datos) => Object.keys(datos).length > 0, {
+    message: 'Envía al menos un campo para actualizar.',
+  })
   .superRefine((datos, ctx) => {
     reglasDeFecha(datos, ctx);
     reglasDeConsistencia(datos, ctx);
@@ -75,9 +77,17 @@ const consentimientoBody = z.object({
   aceptado: z.literal(true, { error: 'El consentimiento debe ser aceptado expresamente.' }),
 });
 
+const anonimizarBody = z.object({
+  confirmar: z.literal(true, { error: 'Debes confirmar la anonimización explícitamente.' }),
+  confirmacion: z.literal('ANONIMIZAR', {
+    error: 'Escribe ANONIMIZAR para confirmar la solicitud.',
+  }),
+});
+
 module.exports = {
   crearPacienteSchema,
   actualizarPacienteSchema,
   listarPacientesQuery,
   consentimientoBody,
+  anonimizarBody,
 };

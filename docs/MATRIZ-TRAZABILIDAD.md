@@ -1,0 +1,16 @@
+# Matriz de trazabilidad
+
+| Requisito                                          | Implementación / suite                                                      | Evidencia de verificación                                         | Estado                        |
+| -------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------- |
+| Cobertura backend ≥85%                             | Jest; `jest.config.cjs`                                                     | 93.66% statements, 94.18% líneas                                  | Cumple                        |
+| Lógica crítica ≥95%                                | `src/lib/curp.js`, `src/lib/slots.js`, `src/modules/citas/citas.service.js` | Statements/líneas: 95.34/100%, 100/100%, 98.22/98.31%             | Cumple                        |
+| Cobertura frontend ≥70%                            | Vitest V8; `front/vitest.config.ts`                                         | Statements/líneas globales 31.03%                                 | **Pendiente**                 |
+| Sesión requerida en rutas privadas                 | `tests/router.authorization.test.js`                                        | Rutas registradas reciben 401 sin token y token inválido          | Cumple                        |
+| Rol requerido para administración                  | `tests/router.authorization.test.js`, `tests/privacidad.admin.test.js`      | Secretaria recibe 403 en endpoints restringidos                   | Cumple                        |
+| ARCO: exportar y anonimizar                        | `tests/privacidad.admin.test.js`, `patient-arco.test.tsx`                   | Exportación, anonimización y confirmación doble                   | Cumple                        |
+| Accesibilidad WCAG 2.1 AA                          | `front/test/accessibility.test.tsx` y axe en navegador                      | 0 violaciones en `/privacidad`; resto de rutas requiere auditoría | Parcial                       |
+| Agenda renderiza múltiples citas y permite teclado | `agenda-page.test.tsx`                                                      | 42 citas; pasa límite de 500 ms por render                        | Cumple en benchmark           |
+| Build optimizado y bundles                         | Next.js Webpack                                                             | Build aprobado; chunks totales 1,252,594 bytes sin comprimir      | Medido; presupuesto pendiente |
+| Lint y tipos                                       | ESLint y TypeScript                                                         | `npm run lint` y `npm run typecheck` sin errores                  | Cumple                        |
+| Complejidad ciclomática                            | Análisis ESLint con límite de referencia 10                                 | Seis funciones superiores al límite; máximo 21                    | Seguimiento pendiente         |
+| Compatibilidad PostgreSQL                          | `scripts/test-postgres.js`                                                  | Requiere base externa `TEST_DATABASE_URL`; no ejecutada           | Pendiente                     |

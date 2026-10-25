@@ -1,173 +1,91 @@
-# PsicoGestion
+# PsicoGestión
 
-Backend de Node.js + Express para el módulo de autenticación de PsicoGestión.
+Aplicación web de gestión psicológica con backend REST y frontend web en un monorepo npm.
 
-## Tecnologías
+## Stack técnico
 
-- Node.js
-- Express
-- Sequelize
-- MySQL / PostgreSQL
-- SQLite (para pruebas)
-- JWT
-- bcrypt
-- Joi
-- nodemailer
-- Jest + Supertest
+- **Backend:** Node.js 18+, Express 4, Sequelize 6, Zod y Umzug.
+- **Frontend:** Next.js 16, React 19 y TypeScript.
+- **Bases de datos:** SQLite para desarrollo local y pruebas; PostgreSQL y MySQL están disponibles para otros entornos.
+- **Pruebas:** Jest y Supertest; la suite puede ejecutarse contra SQLite o PostgreSQL.
+- **Calidad:** ESLint, Prettier, TypeScript y EditorConfig.
 
 ## Requisitos
 
-- Node.js 18+
-- MySQL o PostgreSQL
-- Git
+- Node.js 20.19+, 22.13+ o 24+, y npm 7 o superior.
+- PostgreSQL solo para ejecutar la suite PostgreSQL o desplegar con ese motor.
 
-## Instalar dependencias
+## Instalación
+
+Desde la raíz del repositorio:
 
 ```bash
 npm install
 ```
 
-## Variables de entorno
-
-Copia el archivo `.env.example` a `.env` y configura tus credenciales.
+Copia `.env.example` como `.env` y configura las variables necesarias. SQLite es la base de datos predeterminada en desarrollo:
 
 ```bash
 cp .env.example .env
 ```
 
-## Ejecutar en desarrollo
+## Desarrollo y producción
 
 ```bash
-npm run dev
+npm run dev                 # backend y frontend
+npm run dev:server          # solo backend (puerto 4000)
+npm run dev:client          # solo frontend (puerto 3000)
+npm run build:client
+npm run start:server
+npm run start:client
 ```
 
-## Ejecutar pruebas
+El backend aplica las migraciones automáticamente al iniciar en desarrollo. En producción, ejecútalas durante el despliegue con `npm run migrate`.
+
+## Calidad y pruebas
 
 ```bash
-npm test
+npm test                    # pruebas del backend con SQLite en memoria
+npm run test:backend        # equivalente explícito
+npm run test:frontend       # pruebas del cliente HTTP del frontend
+npm run build:client        # compilación de producción de Next.js
+npm run lint
+npm run format
+npm run typecheck           # TypeScript del frontend
 ```
 
-## Endpoints principales
+Para ejecutar la misma suite backend contra PostgreSQL, crea una base de datos de pruebas y configura `TEST_DATABASE_URL` antes de ejecutar:
 
-### Registro
-
-```http
-POST /api/auth/registro
+```bash
+# PowerShell
+$env:TEST_DATABASE_URL = "postgres://usuario:contraseña@localhost:5432/psicogestion_test"
+npm run test:pg
 ```
 
-Body:
+`test:pg` falla explícitamente si `TEST_DATABASE_URL` no está configurada; no cambia ni elimina datos fuera de la base que proporciones.
 
-```json
-{
-  "nombre_completo": "Ana López",
-  "correo_institucional": "ana@psicogestion.com",
-  "telefono": "987654321",
-  "password": "Password123!",
-  "confirmar_password": "Password123!"
-}
-```
+## Funcionalidades actuales
 
-### Verificación
+- Registro, verificación de correo, inicio/cierre de sesión y recuperación de contraseña.
+- Autenticación por cookie httpOnly, consulta de sesión, acceso por correo/teléfono y tema claro/oscuro.
+- Administración de usuarios, pacientes y terapeutas, con validaciones y controles de acceso.
+- Gestión de salas, disponibilidad y agenda de citas con prevención de traslapes.
+- Notificaciones por correo y registros de auditoría con vista paginada exclusiva para administración.
+- Derechos ARCO: exportación JSON de expedientes auditada y anonimización que conserva citas, bloquea el expediente y elimina datos identificables relacionados.
+- Administración de correos autorizados y roles; cambiar el rol invalida las sesiones anteriores del usuario.
+- Aviso de privacidad público versionado y acciones de exportación/anonimización protegidas en el frontend.
 
-```http
-POST /api/auth/verificar
-```
+Las rutas REST se encuentran bajo `/api`; el endpoint de salud es `GET /health`.
 
-```json
-{
-  "correo_institucional": "ana@psicogestion.com",
-  "codigo_verificacion": "123456"
-}
-```
-
-### Login
-
-```http
-POST /api/auth/login
-```
-
-```json
-{
-  "correo_institucional": "ana@psicogestion.com",
-  "password": "Password123!"
-}
-```
-
-### Logout
-
-```http
-POST /api/auth/logout
-```
-
-Headers:
-
-```http
-Authorization: Bearer <token>
-```
-
-### Recuperación
-
-```http
-POST /api/auth/recuperar
-```
-
-```json
-{
-  "correo_institucional": "ana@psicogestion.com"
-}
-```
-
-### Restablecer contraseña
-
-```http
-POST /api/auth/restablecer
-```
-
-```json
-{
-  "token": "<token>",
-  "nueva_password": "NuevaClave2024!",
-  "confirmar_password": "NuevaClave2024!"
-}
-```
-
-## Estructura del proyecto
+## Estructura
 
 ```text
-src/
-  app.js
-  server.js
-  config/
-    database.js
-  middleware/
-    authMiddleware.js
-  models/
-    User.js
-  routes/
-    authRoutes.js
-  utils/
-    authHelpers.js
-    email.js
-    errors.js
-
-tests/
-  auth.validation.test.js
-  auth.integration.test.js
+src/                 Backend Express
+tests/               Pruebas backend (Jest)
+migrations/           Migraciones de base de datos
+scripts/              Herramientas de desarrollo y migraciones
+front/                Frontend Next.js (workspace npm)
+docs/                 Progreso, bloqueos, riesgos y decisiones
 ```
 
-## Notas
-
-- En desarrollo se usa SQLite para pruebas.
-- Para MySQL/PostgreSQL, configura las variables de entorno y usa el dialecto apropiado.
-- El módulo de autenticación está preparado para futuras rutas protegidas con JWT.
-
-## GitHub
-
-```bash
-git init
-git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/MarianaCabbel/PsicoGestion.git
-git push -u origin main
-```
+La estructura del monorepo y la elección de npm se documentan en [docs/ADR/0001-estructura-monorepo.md](docs/ADR/0001-estructura-monorepo.md).

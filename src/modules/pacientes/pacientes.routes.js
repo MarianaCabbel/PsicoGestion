@@ -9,44 +9,74 @@ const {
   actualizarPacienteSchema,
   listarPacientesQuery,
   consentimientoBody,
+  anonimizarBody,
 } = require('./pacientes.validators');
 
 const router = express.Router();
 
 router.use(authenticateToken);
 
-router.get('/', requirePermission('pacientes:leer'), validate({ query: listarPacientesQuery }), controller.listar);
+router.get(
+  '/',
+  requirePermission('pacientes:leer'),
+  validate({ query: listarPacientesQuery }),
+  controller.listar,
+);
 
-router.post('/', requirePermission('pacientes:crear'), validate({ body: crearPacienteSchema }), controller.crear);
+router.post(
+  '/',
+  requirePermission('pacientes:crear'),
+  validate({ body: crearPacienteSchema }),
+  controller.crear,
+);
 
-router.get('/:id', requirePermission('pacientes:leer'), validate({ params: idParams }), controller.obtener);
+router.get(
+  '/:id',
+  requirePermission('pacientes:leer'),
+  validate({ params: idParams }),
+  controller.obtener,
+);
 
 router.put(
   '/:id',
   requirePermission('pacientes:editar'),
   validate({ params: idParams, body: actualizarPacienteSchema }),
-  controller.actualizar
+  controller.actualizar,
 );
 
 router.delete(
   '/:id',
   requirePermission('pacientes:baja'),
   validate({ params: idParams, body: confirmacionBody }),
-  controller.darDeBaja
+  controller.darDeBaja,
 );
 
 router.post(
   '/:id/reactivar',
   requirePermission('pacientes:reactivar'),
   validate({ params: idParams }),
-  controller.reactivar
+  controller.reactivar,
 );
 
 router.post(
   '/:id/consentimiento',
   requirePermission('pacientes:consentimiento'),
   validate({ params: idParams, body: consentimientoBody }),
-  controller.registrarConsentimiento
+  controller.registrarConsentimiento,
+);
+
+router.get(
+  '/:id/exportar',
+  requirePermission('pacientes:leer'),
+  validate({ params: idParams }),
+  controller.exportar,
+);
+
+router.post(
+  '/:id/anonimizar',
+  requirePermission('pacientes:anonimizar'),
+  validate({ params: idParams, body: anonimizarBody }),
+  controller.anonimizar,
 );
 
 module.exports = router;

@@ -1,5 +1,5 @@
 const { Op, UniqueConstraintError } = require('sequelize');
-const { Paciente } = require('../../config/database');
+const { Paciente, Cita, Notificacion } = require('../../config/database');
 const { AppError } = require('../../utils/errors');
 const { AVISO_PRIVACIDAD_VERSION, EDAD_MINIMA_PACIENTE } = require('../../config/clinica');
 const { inconsistenciasCurp, validarCurp } = require('../../lib/curp');
@@ -7,6 +7,8 @@ const { edadEnAnios, hoyEnClinica } = require('../../lib/fechas');
 const { registrarAuditoria } = require('../../lib/audit');
 const { conTransaccion } = require('../../lib/transaccion');
 const { verificarBajaPermitida } = require('../../lib/bajaGuards');
+const { enClinica, ahora } = require('../../lib/reloj');
+const { condicionNoVencida } = require('../citas/citas.estado');
 const {
   calcularPaginacion,
   respuestaPaginada,
@@ -21,12 +23,13 @@ function serializar(paciente) {
     curp: paciente.curp,
     sexo: paciente.sexo,
     fecha_nacimiento: paciente.fecha_nacimiento,
-    edad: edadEnAnios(paciente.fecha_nacimiento),
+    edad: paciente.anonimizado_at ? null : edadEnAnios(paciente.fecha_nacimiento),
     telefono: paciente.telefono,
     correo: paciente.correo,
     estado: paciente.estado,
     consentimiento_at: paciente.consentimiento_at,
     aviso_version: paciente.aviso_version,
+    anonimizado_at: paciente.anonimizado_at,
     created_at: paciente.created_at,
     updated_at: paciente.updated_at,
     baja_at: paciente.baja_at,
@@ -67,11 +70,14 @@ async function crear(datos, contexto) {
 
   try {
     return await conTransaccion(async (transaction) => {
-      const paciente = await Paciente.create({ ...datos, creado_por: contexto.usuarioId }, { transaction });
+      const paciente = await Paciente.create(
+        { ...datos, creado_por: contexto.usuarioId },
+        { transaction },
+      );
 
       await registrarAuditoria(
         { ...contexto, accion: 'crear', entidad: 'paciente', entidadId: paciente.id },
-        { transaction }
+        { transaction },
       );
 
       return serializar(paciente);
@@ -134,7 +140,7 @@ async function obtener(id, contexto) {
   // Consultar un perfil es acceso a datos personales: queda en bitácora (sin valores).
   await registrarAuditoria(
     { ...contexto, accion: 'consultar', entidad: 'paciente', entidadId: paciente.id },
-    { mejorEsfuerzo: true }
+    { mejorEsfuerzo: true },
   );
 
   return serializar(paciente);
@@ -161,7 +167,10 @@ async function actualizar(id, cambios, contexto) {
       throw new AppError(primero, 400, null, erroresConsistencia);
     }
 
-    if (cambios.fecha_nacimiento && edadEnAnios(resultante.fecha_nacimiento, hoyEnClinica()) < EDAD_MINIMA_PACIENTE) {
+    if (
+      cambios.fecha_nacimiento &&
+      edadEnAnios(resultante.fecha_nacimiento, hoyEnClinica()) < EDAD_MINIMA_PACIENTE
+    ) {
       const mensaje = `La edad mínima del paciente es de ${EDAD_MINIMA_PACIENTE} años.`;
       throw new AppError(mensaje, 400, null, { fecha_nacimiento: mensaje });
     }
@@ -183,7 +192,7 @@ async function actualizar(id, cambios, contexto) {
         entidadId: paciente.id,
         detalle: { campos: Object.keys(cambios).sort() },
       },
-      { transaction }
+      { transaction },
     );
 
     return serializar(paciente);
@@ -205,7 +214,7 @@ async function darDeBaja(id, contexto) {
 
     await registrarAuditoria(
       { ...contexto, accion: 'baja', entidad: 'paciente', entidadId: paciente.id },
-      { transaction }
+      { transaction },
     );
   });
 }
@@ -213,6 +222,10 @@ async function darDeBaja(id, contexto) {
 async function reactivar(id, contexto) {
   return conTransaccion(async (transaction) => {
     const paciente = await buscarPorId(id, { transaction });
+
+    if (paciente.anonimizado_at) {
+      throw new AppError('Un expediente anonimizado no se puede reactivar.', 409);
+    }
 
     if (!paciente.baja_at) {
       throw new AppError('El paciente ya está activo.', 409);
@@ -223,7 +236,7 @@ async function reactivar(id, contexto) {
 
     await registrarAuditoria(
       { ...contexto, accion: 'reactivar', entidad: 'paciente', entidadId: paciente.id },
-      { transaction }
+      { transaction },
     );
 
     return serializar(paciente);
@@ -236,7 +249,7 @@ async function registrarConsentimiento(id, contexto) {
 
     await paciente.update(
       { consentimiento_at: new Date(), aviso_version: AVISO_PRIVACIDAD_VERSION },
-      { transaction }
+      { transaction },
     );
 
     await registrarAuditoria(
@@ -247,10 +260,173 @@ async function registrarConsentimiento(id, contexto) {
         entidadId: paciente.id,
         detalle: { aviso_version: AVISO_PRIVACIDAD_VERSION },
       },
-      { transaction }
+      { transaction },
     );
 
     return serializar(paciente);
+  });
+}
+
+async function exportar(id, contexto) {
+  return conTransaccion(async (transaction) => {
+    const paciente = await buscarPorId(id, { transaction });
+    const citas = await Cita.findAll({
+      where: { paciente_id: paciente.id },
+      attributes: [
+        'folio',
+        'fecha',
+        'hora_inicio',
+        'hora_fin',
+        'duracion_slots',
+        'estado',
+        'motivo_cancelacion',
+        'cancelada_at',
+        'created_at',
+      ],
+      order: [
+        ['fecha', 'ASC'],
+        ['hora_inicio', 'ASC'],
+      ],
+      transaction,
+    });
+
+    await registrarAuditoria(
+      {
+        ...contexto,
+        accion: 'exportar',
+        entidad: 'paciente',
+        entidadId: paciente.id,
+        detalle: {
+          campos: ['nombre_completo', 'curp', 'sexo', 'fecha_nacimiento', 'telefono', 'correo'],
+        },
+      },
+      { transaction },
+    );
+
+    return {
+      exportado_at: new Date().toISOString(),
+      paciente: serializar(paciente),
+      citas: citas.map((cita) => ({
+        folio: cita.folio,
+        fecha: cita.fecha,
+        hora_inicio: cita.hora_inicio,
+        hora_fin: cita.hora_fin,
+        duracion_slots: cita.duracion_slots,
+        estado: cita.estado,
+        motivo_cancelacion: cita.motivo_cancelacion,
+        cancelada_at: cita.cancelada_at,
+        created_at: cita.created_at,
+      })),
+    };
+  });
+}
+
+async function anonimizar(id, contexto) {
+  return conTransaccion(async (transaction) => {
+    const paciente = await buscarPorId(id, { transaction });
+
+    if (paciente.anonimizado_at) {
+      throw new AppError('El expediente ya fue anonimizado.', 409);
+    }
+
+    const ahoraClinica = enClinica(ahora());
+    const citasFuturas = await Cita.count({
+      where: {
+        paciente_id: paciente.id,
+        [Op.and]: [{ estado: 'pendiente' }, condicionNoVencida(ahoraClinica)],
+      },
+      transaction,
+    });
+
+    if (citasFuturas > 0) {
+      throw new AppError(
+        'No se puede anonimizar el expediente mientras tenga citas pendientes futuras.',
+        409,
+        null,
+        null,
+        { citas_futuras_pendientes: citasFuturas },
+      );
+    }
+
+    const citasPaciente = await Cita.findAll({
+      where: { paciente_id: paciente.id },
+      attributes: ['id'],
+      transaction,
+    });
+    const citaIds = citasPaciente.map((cita) => cita.id);
+    if (citaIds.length) {
+      await Cita.update(
+        { motivo_cancelacion: null, cancelada_por: null, creada_por: null },
+        { where: { id: { [Op.in]: citaIds } }, transaction },
+      );
+      await Notificacion.update(
+        {
+          destinatario: 'anonimizado@invalid',
+          ultimo_error: null,
+          estado: 'omitida',
+        },
+        {
+          where: { cita_id: { [Op.in]: citaIds }, estado: { [Op.ne]: 'enviada' } },
+          transaction,
+        },
+      );
+      await Notificacion.update(
+        { destinatario: 'anonimizado@invalid', ultimo_error: null },
+        { where: { cita_id: { [Op.in]: citaIds }, estado: 'enviada' }, transaction },
+      );
+    }
+
+    const anonimizadoAt = new Date();
+    const idAnonimo = String(paciente.id).padStart(14, '0').slice(-14);
+    await paciente.update(
+      {
+        nombre_completo: `Paciente anonimizado ${paciente.id}`,
+        curp: `ANON${idAnonimo}`,
+        sexo: 'X',
+        fecha_nacimiento: '1900-01-01',
+        telefono: '0000000000',
+        correo: null,
+        consentimiento_at: null,
+        aviso_version: null,
+        creado_por: null,
+        baja_por: null,
+        anonimizado_at: anonimizadoAt,
+      },
+      { transaction },
+    );
+    await paciente.destroy({ transaction });
+
+    await registrarAuditoria(
+      {
+        ...contexto,
+        accion: 'anonimizar',
+        entidad: 'paciente',
+        entidadId: paciente.id,
+        detalle: {
+          campos: [
+            'nombre_completo',
+            'curp',
+            'sexo',
+            'fecha_nacimiento',
+            'telefono',
+            'correo',
+            'consentimiento_at',
+            'motivo_cancelacion',
+            'cancelada_por',
+            'creada_por',
+            'destinatario',
+            'ultimo_error',
+          ],
+        },
+      },
+      { transaction },
+    );
+
+    return {
+      id: paciente.id,
+      estado: 'baja',
+      anonimizado_at: paciente.anonimizado_at,
+    };
   });
 }
 
@@ -262,5 +438,7 @@ module.exports = {
   darDeBaja,
   reactivar,
   registrarConsentimiento,
+  exportar,
+  anonimizar,
   serializar,
 };

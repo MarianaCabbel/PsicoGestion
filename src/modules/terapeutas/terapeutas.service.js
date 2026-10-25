@@ -269,7 +269,7 @@ async function procesarFoto(buffer) {
 
   try {
     metadatos = await sharp(buffer, { limitInputPixels: MAX_PIXELES_ENTRADA }).metadata();
-  } catch (error) {
+  } catch (_error) {
     throw new AppError('El archivo no es una imagen válida.', 400, null, { foto: 'El archivo no es una imagen válida.' });
   }
 

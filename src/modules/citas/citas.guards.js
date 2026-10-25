@@ -1,4 +1,3 @@
-const { Op } = require('sequelize');
 const { Cita } = require('../../config/database');
 const { REQUIERE_HORARIO_TERAPEUTA } = require('../../config/clinica');
 const { registrarBajaGuard } = require('../../lib/bajaGuards');

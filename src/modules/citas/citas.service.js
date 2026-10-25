@@ -133,15 +133,21 @@ async function cargarActivo(clave, id, transaction) {
   return entidad;
 }
 
-async function franjasDelDia(terapeutaId, dia, transaction) {
+async function horariosDelTerapeuta(terapeutaId, transaction) {
   const horarios = await TerapeutaHorario.findAll({
-    where: { terapeuta_id: terapeutaId, dia_semana: dia },
+    where: { terapeuta_id: terapeutaId },
     transaction,
     raw: true,
   });
 
+  return horarios;
+}
+
+function franjasDelDia(horarios, dia) {
   return fusionarFranjas(
-    horarios.map((h) => ({ inicio: horaAMinutos(h.hora_inicio), fin: horaAMinutos(h.hora_fin) }))
+    horarios
+      .filter((horario) => horario.dia_semana === dia)
+      .map((horario) => ({ inicio: horaAMinutos(horario.hora_inicio), fin: horaAMinutos(horario.hora_fin) }))
   );
 }
 
@@ -178,17 +184,21 @@ async function validarReglasDeAgenda({ fecha, hora_inicio, duracion_slots, terap
   }
 
   if (REQUIERE_HORARIO_TERAPEUTA) {
-    const franjas = await franjasDelDia(terapeuta_id, dia, transaction);
+    const horarios = await horariosDelTerapeuta(terapeuta_id, transaction);
 
-    if (franjas.length === 0) {
-      throw errorDeCampo('El terapeuta no tiene horario configurado para ese día.', 'terapeuta_id');
-    }
+    if (horarios.length > 0) {
+      const franjas = franjasDelDia(horarios, dia);
 
-    const inicio = horaAMinutos(hora_inicio);
-    const fin = inicio + duracion_slots * SLOT_MINUTOS;
+      if (franjas.length === 0) {
+        throw errorDeCampo('El terapeuta no tiene horario configurado para ese día.', 'terapeuta_id');
+      }
 
-    if (!franjas.some((franja) => franja.inicio <= inicio && franja.fin >= fin)) {
-      throw errorDeCampo('El terapeuta no atiende en ese horario.', 'hora_inicio');
+      const inicio = horaAMinutos(hora_inicio);
+      const fin = inicio + duracion_slots * SLOT_MINUTOS;
+
+      if (!franjas.some((franja) => franja.inicio <= inicio && franja.fin >= fin)) {
+        throw errorDeCampo('El terapeuta no atiende en ese horario.', 'hora_inicio');
+      }
     }
   }
 
@@ -559,9 +569,16 @@ async function disponibilidad({ fecha, terapeuta_id, paciente_id, duracion_slots
   const dia = diaSemanaISO(fecha);
   if (!DIAS_ATENCION.includes(dia)) return { ...respuesta, motivo: 'La clínica no atiende ese día de la semana.' };
 
-  const franjas = await franjasDelDia(terapeuta_id, dia);
-  if (REQUIERE_HORARIO_TERAPEUTA && franjas.length === 0) {
-    return { ...respuesta, motivo: 'El terapeuta no tiene horario configurado para ese día.' };
+  let franjas = [];
+  if (REQUIERE_HORARIO_TERAPEUTA) {
+    const horarios = await horariosDelTerapeuta(terapeuta_id);
+
+    if (horarios.length > 0) {
+      franjas = franjasDelDia(horarios, dia);
+      if (franjas.length === 0) {
+        return { ...respuesta, motivo: 'El terapeuta no tiene horario configurado para ese día.' };
+      }
+    }
   }
 
   const salas = await Sala.findAll({ order: [['nombre_norm', 'ASC'], ['id', 'ASC']] });
@@ -599,7 +616,9 @@ async function disponibilidad({ fecha, terapeuta_id, paciente_id, duracion_slots
     const minutosFin = minutosInicio + duracion * SLOT_MINUTOS;
 
     const dentroDeHorario =
-      !REQUIERE_HORARIO_TERAPEUTA || franjas.some((f) => f.inicio <= minutosInicio && f.fin >= minutosFin);
+      !REQUIERE_HORARIO_TERAPEUTA ||
+      franjas.length === 0 ||
+      franjas.some((f) => f.inicio <= minutosInicio && f.fin >= minutosFin);
     const yaPaso = fecha === ahoraClinica.fecha && minutosInicio <= ahoraClinica.minutos;
 
     if (!dentroDeHorario || yaPaso) continue;

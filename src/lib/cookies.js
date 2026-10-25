@@ -19,7 +19,7 @@ function parseCookies(header) {
 
       try {
         cookies[name] = decodeURIComponent(value);
-      } catch (error) {
+      } catch (_error) {
         cookies[name] = value;
       }
     });

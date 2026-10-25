@@ -13,7 +13,12 @@ function columnasDelModelo(modelo) {
 }
 
 function nuevaBase() {
-  return new Sequelize({ dialect: 'sqlite', storage: ':memory:', logging: false, define: { underscored: true, timestamps: false } });
+  return new Sequelize({
+    dialect: 'sqlite',
+    storage: ':memory:',
+    logging: false,
+    define: { underscored: true, timestamps: false },
+  });
 }
 
 async function tablas(sequelize) {
@@ -38,7 +43,11 @@ describe('Migraciones (Umzug)', () => {
       esperadas
         .filter(({ llavePrimaria }) => !llavePrimaria)
         .forEach(({ columna, permiteNulo }) => {
-          expect({ tabla, columna, permiteNulo: descrita[columna].allowNull }).toEqual({ tabla, columna, permiteNulo });
+          expect({ tabla, columna, permiteNulo: descrita[columna].allowNull }).toEqual({
+            tabla,
+            columna,
+            permiteNulo,
+          });
         });
     }
 
@@ -51,7 +60,20 @@ describe('Migraciones (Umzug)', () => {
 
     await migrator.up();
     expect(await tablas(base)).toEqual(
-      expect.arrayContaining(['audit_log', 'citas', 'cita_ocupaciones', 'correos_autorizados', 'folio_counters', 'notificaciones', 'pacientes', 'salas', 'terapeuta_fotos', 'terapeuta_horarios', 'terapeutas', 'usuarios_administrativos'])
+      expect.arrayContaining([
+        'audit_log',
+        'citas',
+        'cita_ocupaciones',
+        'correos_autorizados',
+        'folio_counters',
+        'notificaciones',
+        'pacientes',
+        'salas',
+        'terapeuta_fotos',
+        'terapeuta_horarios',
+        'terapeutas',
+        'usuarios_administrativos',
+      ]),
     );
 
     await migrator.down({ to: 0 });
@@ -70,7 +92,7 @@ describe('Migraciones (Umzug)', () => {
     const primera = await migrator.up();
     const segunda = await migrator.up();
 
-    expect(primera).toHaveLength(8);
+    expect(primera).toHaveLength(9);
     expect(segunda).toHaveLength(0);
 
     await base.close();
@@ -90,14 +112,18 @@ describe('Migraciones (Umzug)', () => {
       codigo_verificacion: { type: Sequelize.STRING, allowNull: true },
       codigo_expira_en: { type: Sequelize.DATE, allowNull: true },
       token_version: { type: Sequelize.INTEGER, allowNull: false, defaultValue: 0 },
-      fecha_creacion: { type: Sequelize.DATE, allowNull: false, defaultValue: Sequelize.literal('CURRENT_TIMESTAMP') },
+      fecha_creacion: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: Sequelize.literal('CURRENT_TIMESTAMP'),
+      },
       reset_token_hash: { type: Sequelize.STRING, allowNull: true },
       reset_token_expira_en: { type: Sequelize.DATE, allowNull: true },
     });
 
     await base.query(
       `INSERT INTO usuarios_administrativos (nombre_completo, correo_institucional, telefono, password_hash, verificado, reset_token_hash, reset_token_expira_en)
-       VALUES ('Ana', 'ana@correo.uady.mx', '9876543210', 'hash', 1, 'token-en-claro-heredado', '2099-01-01')`
+       VALUES ('Ana', 'ana@correo.uady.mx', '9876543210', 'hash', 1, 'token-en-claro-heredado', '2099-01-01')`,
     );
 
     await crearMigrator(base).up();
@@ -120,12 +146,16 @@ describe('Migraciones (Umzug)', () => {
 
     const insertar = (curp, creador = 'NULL') =>
       base.query(
-        `INSERT INTO pacientes (nombre_completo, curp, sexo, fecha_nacimiento, telefono, creado_por) VALUES ('X', '${curp}', 'H', '1990-01-01', '9990000000', ${creador})`
+        `INSERT INTO pacientes (nombre_completo, curp, sexo, fecha_nacimiento, telefono, creado_por) VALUES ('X', '${curp}', 'H', '1990-01-01', '9990000000', ${creador})`,
       );
 
     await insertar('AAAA900101HYNRRL00');
-    await expect(insertar('AAAA900101HYNRRL00')).rejects.toMatchObject({ name: 'SequelizeUniqueConstraintError' });
-    await expect(insertar('BBBB900101HYNRRL00', 999)).rejects.toMatchObject({ name: 'SequelizeForeignKeyConstraintError' });
+    await expect(insertar('AAAA900101HYNRRL00')).rejects.toMatchObject({
+      name: 'SequelizeUniqueConstraintError',
+    });
+    await expect(insertar('BBBB900101HYNRRL00', 999)).rejects.toMatchObject({
+      name: 'SequelizeForeignKeyConstraintError',
+    });
 
     await base.close();
   });

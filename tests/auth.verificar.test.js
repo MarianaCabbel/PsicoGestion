@@ -1,7 +1,7 @@
 const request = require('supertest');
 const { User } = require('../src/config/database');
 const app = require('../src/app');
-const { VALID_EMAIL, VALID_PASSWORD, useTestDatabase, register } = require('./helpers');
+const { VALID_EMAIL, useTestDatabase, register } = require('./helpers');
 
 function wrongCodeFor(stored) {
   return String((Number(stored) + 1) % 1000000).padStart(6, '0');

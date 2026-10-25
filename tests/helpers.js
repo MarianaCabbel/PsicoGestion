@@ -16,6 +16,7 @@ const {
   Notificacion,
 } = require('../src/config/database');
 const reloj = require('../src/lib/reloj');
+const { esperarTransaccionesPendientes } = require('../src/lib/transaccion');
 const { RESET_LINK_TTL_MS } = require('../src/utils/authHelpers');
 const { testOutbox, testControl } = require('../src/utils/email');
 
@@ -34,14 +35,19 @@ function useTestDatabase() {
   });
 
   afterEach(async () => {
-    await limpiarTablas();
-    testOutbox.length = 0;
-    testControl.fallar = false;
-    testControl.mensaje = null;
-    reloj.fijarAhora(null);
+    await esperarTransaccionesPendientes();
+    try {
+      await limpiarTablas();
+    } finally {
+      testOutbox.length = 0;
+      testControl.fallar = false;
+      testControl.mensaje = null;
+      reloj.fijarAhora(null);
+    }
   });
 
   afterAll(async () => {
+    await esperarTransaccionesPendientes();
     await sequelize.close();
   });
 }
@@ -83,14 +89,16 @@ async function seedVerifiedUser({ password = VALID_PASSWORD, ...overrides } = {}
 }
 
 function register(app, overrides = {}) {
-  return request(app).post('/api/auth/registro').send({
-    nombre_completo: 'Ana López',
-    correo_institucional: VALID_EMAIL,
-    telefono: VALID_PHONE,
-    password: VALID_PASSWORD,
-    confirmar_password: VALID_PASSWORD,
-    ...overrides,
-  });
+  return request(app)
+    .post('/api/auth/registro')
+    .send({
+      nombre_completo: 'Ana López',
+      correo_institucional: VALID_EMAIL,
+      telefono: VALID_PHONE,
+      password: VALID_PASSWORD,
+      confirmar_password: VALID_PASSWORD,
+      ...overrides,
+    });
 }
 
 async function loginAndToken(app) {

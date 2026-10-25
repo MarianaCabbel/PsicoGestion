@@ -32,7 +32,7 @@ function splitList(value) {
 function originOf(url) {
   try {
     return new URL(url).origin;
-  } catch (error) {
+  } catch (_error) {
     return null;
   }
 }

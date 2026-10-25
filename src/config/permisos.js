@@ -16,6 +16,7 @@ const PERMISOS = Object.freeze({
   'pacientes:baja': TODOS,
   'pacientes:reactivar': [ROLES.ADMINISTRADOR],
   'pacientes:consentimiento': TODOS,
+  'pacientes:anonimizar': [ROLES.ADMINISTRADOR],
   'terapeutas:leer': TODOS,
   'terapeutas:crear': TODOS,
   'terapeutas:editar': TODOS,

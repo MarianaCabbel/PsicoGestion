@@ -16,7 +16,7 @@ class AppError extends Error {
   }
 }
 
-const errorHandler = (err, req, res, next) => {
+const errorHandler = (err, req, res, _next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Error interno del servidor.';
 

@@ -5,7 +5,9 @@ async function crear(req, res, next) {
   try {
     const paciente = await service.crear(req.validated.body, contextoDe(req));
 
-    res.status(201).json({ success: true, message: 'Paciente registrado correctamente.', data: paciente });
+    res
+      .status(201)
+      .json({ success: true, message: 'Paciente registrado correctamente.', data: paciente });
   } catch (error) {
     next(error);
   }
@@ -25,7 +27,9 @@ async function obtener(req, res, next) {
   try {
     const paciente = await service.obtener(req.validated.params.id, contextoDe(req));
 
-    res.status(200).json({ success: true, message: 'Paciente consultado correctamente.', data: paciente });
+    res
+      .status(200)
+      .json({ success: true, message: 'Paciente consultado correctamente.', data: paciente });
   } catch (error) {
     next(error);
   }
@@ -33,9 +37,15 @@ async function obtener(req, res, next) {
 
 async function actualizar(req, res, next) {
   try {
-    const paciente = await service.actualizar(req.validated.params.id, req.validated.body, contextoDe(req));
+    const paciente = await service.actualizar(
+      req.validated.params.id,
+      req.validated.body,
+      contextoDe(req),
+    );
 
-    res.status(200).json({ success: true, message: 'Paciente actualizado correctamente.', data: paciente });
+    res
+      .status(200)
+      .json({ success: true, message: 'Paciente actualizado correctamente.', data: paciente });
   } catch (error) {
     next(error);
   }
@@ -55,7 +65,9 @@ async function reactivar(req, res, next) {
   try {
     const paciente = await service.reactivar(req.validated.params.id, contextoDe(req));
 
-    res.status(200).json({ success: true, message: 'Paciente reactivado correctamente.', data: paciente });
+    res
+      .status(200)
+      .json({ success: true, message: 'Paciente reactivado correctamente.', data: paciente });
   } catch (error) {
     next(error);
   }
@@ -63,9 +75,36 @@ async function reactivar(req, res, next) {
 
 async function registrarConsentimiento(req, res, next) {
   try {
-    const paciente = await service.registrarConsentimiento(req.validated.params.id, contextoDe(req));
+    const paciente = await service.registrarConsentimiento(
+      req.validated.params.id,
+      contextoDe(req),
+    );
 
-    res.status(200).json({ success: true, message: 'Consentimiento registrado correctamente.', data: paciente });
+    res
+      .status(200)
+      .json({ success: true, message: 'Consentimiento registrado correctamente.', data: paciente });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function exportar(req, res, next) {
+  try {
+    const data = await service.exportar(req.validated.params.id, contextoDe(req));
+
+    res
+      .status(200)
+      .json({ success: true, message: 'Datos personales exportados correctamente.', data });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function anonimizar(req, res, next) {
+  try {
+    const data = await service.anonimizar(req.validated.params.id, contextoDe(req));
+
+    res.status(200).json({ success: true, message: 'Expediente anonimizado correctamente.', data });
   } catch (error) {
     next(error);
   }
@@ -79,4 +118,6 @@ module.exports = {
   darDeBaja,
   reactivar,
   registrarConsentimiento,
+  exportar,
+  anonimizar,
 };

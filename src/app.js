@@ -6,6 +6,10 @@ const pacientesRoutes = require('./modules/pacientes/pacientes.routes');
 const terapeutasRoutes = require('./modules/terapeutas/terapeutas.routes');
 const salasRoutes = require('./modules/salas/salas.routes');
 const citasRoutes = require('./modules/citas/citas.routes');
+const agendaRoutes = require('./modules/agenda/agenda.routes');
+const dashboardRoutes = require('./modules/dashboard/dashboard.routes');
+const auditoriaRoutes = require('./modules/auditoria/auditoria.routes');
+const adminRoutes = require('./modules/admin/admin.routes');
 const { registrarGuardsDeCitas } = require('./modules/citas/citas.guards');
 const { errorHandler, AppError } = require('./utils/errors');
 const { sequelize } = require('./config/database');
@@ -32,7 +36,7 @@ app.use(
       return callback(null, false);
     },
     credentials: true,
-  })
+  }),
 );
 
 app.use(express.json({ limit: '100kb' }));
@@ -45,7 +49,7 @@ app.get('/health/ready', async (req, res) => {
   try {
     await sequelize.authenticate();
     res.status(200).json({ success: true, message: 'Servicio listo' });
-  } catch (error) {
+  } catch (_error) {
     res.status(503).json({ success: false, message: 'Base de datos no disponible' });
   }
 });
@@ -57,6 +61,10 @@ app.use('/api/pacientes', pacientesRoutes);
 app.use('/api/terapeutas', terapeutasRoutes);
 app.use('/api/salas', salasRoutes);
 app.use('/api/citas', citasRoutes);
+app.use('/api/agenda', agendaRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/auditoria', auditoriaRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.use('/api', (req, res, next) => next(new AppError('Recurso no encontrado.', 404)));
 

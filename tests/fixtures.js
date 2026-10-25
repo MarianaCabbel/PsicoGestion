@@ -47,9 +47,7 @@ function datosTerapeuta(overrides = {}) {
 async function crearImagen({ ancho = 400, alto = 400, formato = 'png' } = {}) {
   return sharp({
     create: { width: ancho, height: alto, channels: 3, background: { r: 30, g: 120, b: 200 } },
-  })
-    [formato]()
-    .toBuffer();
+  })[formato]().toBuffer();
 }
 
 /**

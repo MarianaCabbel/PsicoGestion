@@ -1,13 +1,28 @@
 const request = require('supertest');
 const app = require('../src/app');
-const { Cita, CitaOcupacion, Notificacion, AuditLog, FolioCounter, TerapeutaHorario } = require('../src/config/database');
+const {
+  Cita,
+  CitaOcupacion,
+  Notificacion,
+  AuditLog,
+  FolioCounter,
+  TerapeutaHorario,
+} = require('../src/config/database');
 const reloj = require('../src/lib/reloj');
 const { registrarGuardsDeCitas } = require('../src/modules/citas/citas.guards');
 const { useTestDatabase, loginAs, bearer } = require('./helpers');
-const { crearPaciente, crearTerapeutaConHorario, crearSala, insertarCita, enMerida } = require('./fixtures');
+const {
+  crearPaciente,
+  crearTerapeutaConHorario,
+  crearSala,
+  insertarCita,
+  enMerida,
+} = require('./fixtures');
 
 const LUNES = '2026-10-19';
 const MARTES = '2026-10-20';
+
+jest.setTimeout(30000);
 
 describe('Módulo de citas', () => {
   useTestDatabase();
@@ -37,7 +52,8 @@ describe('Módulo de citas', () => {
     ...extra,
   });
 
-  const agendar = (extra = {}, t = token) => request(app).post('/api/citas').set(bearer(t)).send(datos(extra));
+  const agendar = (extra = {}, t = token) =>
+    request(app).post('/api/citas').set(bearer(t)).send(datos(extra));
 
   /** Un juego completo de recursos distintos, para agendar a la misma hora sin conflicto. */
   async function recursosNuevos() {
@@ -66,9 +82,19 @@ describe('Módulo de citas', () => {
         sala: { id: sala.id, nombre: 'Sala A' },
       });
 
-      const ocupaciones = await CitaOcupacion.findAll({ where: { cita_id: res.body.data.id }, order: [['slot', 'ASC']] });
+      const ocupaciones = await CitaOcupacion.findAll({
+        where: { cita_id: res.body.data.id },
+        order: [['slot', 'ASC']],
+      });
       expect(ocupaciones.map((o) => o.slot)).toEqual([4, 5]);
-      expect(ocupaciones.every((o) => o.sala_id === sala.id && o.terapeuta_id === terapeuta.id && o.paciente_id === paciente.id)).toBe(true);
+      expect(
+        ocupaciones.every(
+          (o) =>
+            o.sala_id === sala.id &&
+            o.terapeuta_id === terapeuta.id &&
+            o.paciente_id === paciente.id,
+        ),
+      ).toBe(true);
     });
 
     test('CP-INT-110 exige autenticación', async () => {
@@ -78,7 +104,10 @@ describe('Módulo de citas', () => {
     test('CP-INT-111 los folios son consecutivos y reinician cada año', async () => {
       const primera = await agendar();
       const segunda = await agendar({ hora_inicio: '11:00' });
-      expect([primera.body.data.folio, segunda.body.data.folio]).toEqual(['CIT-2026-000001', 'CIT-2026-000002']);
+      expect([primera.body.data.folio, segunda.body.data.folio]).toEqual([
+        'CIT-2026-000001',
+        'CIT-2026-000002',
+      ]);
 
       reloj.fijarAhora(enMerida('2027-01-04', '08:00'));
       const nuevoAnio = await agendar({ fecha: '2027-01-05' });
@@ -113,7 +142,7 @@ describe('Módulo de citas', () => {
 
       expect(res.status).toBe(400);
       expect(Object.keys(res.body.errors)).toEqual(
-        expect.arrayContaining(['paciente_id', 'terapeuta_id', 'sala_id', 'fecha', 'hora_inicio'])
+        expect.arrayContaining(['paciente_id', 'terapeuta_id', 'sala_id', 'fecha', 'hora_inicio']),
       );
     });
 
@@ -181,7 +210,9 @@ describe('Módulo de citas', () => {
     test('CP-INT-117 una cita que terminaría después de las 19:00 se rechaza; la última del día cabe', async () => {
       const tarde = await agendar({ hora_inicio: '18:30', duracion_slots: 2 });
       expect(tarde.status).toBe(400);
-      expect(tarde.body.errors.duracion_slots).toBe('La cita terminaría después del cierre (19:00).');
+      expect(tarde.body.errors.duracion_slots).toBe(
+        'La cita terminaría después del cierre (19:00).',
+      );
 
       const ultima = await agendar({ hora_inicio: '18:30', duracion_slots: 1 });
       expect(ultima.status).toBe(201);
@@ -189,25 +220,55 @@ describe('Módulo de citas', () => {
     });
 
     test('CP-INT-118 solo se agenda dentro del horario semanal del terapeuta', async () => {
-      const acotado = await crearTerapeutaConHorario({}, [{ dia_semana: 1, hora_inicio: '09:00', hora_fin: '12:00' }]);
+      const acotado = await crearTerapeutaConHorario({}, [
+        { dia_semana: 1, hora_inicio: '09:00', hora_fin: '12:00' },
+      ]);
 
       const antes = await agendar({ terapeuta_id: acotado.id, hora_inicio: '08:30' });
       expect(antes.status).toBe(400);
       expect(antes.body.errors.hora_inicio).toBe('El terapeuta no atiende en ese horario.');
 
-      const sePasa = await agendar({ terapeuta_id: acotado.id, hora_inicio: '11:30', duracion_slots: 2 });
+      const sePasa = await agendar({
+        terapeuta_id: acotado.id,
+        hora_inicio: '11:30',
+        duracion_slots: 2,
+      });
       expect(sePasa.status).toBe(400);
 
-      const justo = await agendar({ terapeuta_id: acotado.id, hora_inicio: '11:00', duracion_slots: 2 });
+      const justo = await agendar({
+        terapeuta_id: acotado.id,
+        hora_inicio: '11:00',
+        duracion_slots: 2,
+      });
       expect(justo.status).toBe(201);
     });
 
     test('CP-INT-118 un día sin horario configurado no se puede agendar', async () => {
-      const acotado = await crearTerapeutaConHorario({}, [{ dia_semana: 1, hora_inicio: '09:00', hora_fin: '12:00' }]);
+      const acotado = await crearTerapeutaConHorario({}, [
+        { dia_semana: 1, hora_inicio: '09:00', hora_fin: '12:00' },
+      ]);
 
       const res = await agendar({ terapeuta_id: acotado.id, fecha: MARTES });
       expect(res.status).toBe(400);
-      expect(res.body.errors.terapeuta_id).toBe('El terapeuta no tiene horario configurado para ese día.');
+      expect(res.body.errors.terapeuta_id).toBe(
+        'El terapeuta no tiene horario configurado para ese día.',
+      );
+    });
+
+    test('CP-INT-118 permite agendar si el terapeuta aún no tiene horarios configurados', async () => {
+      const sinHorario = await crearTerapeutaConHorario({}, []);
+
+      const res = await agendar({ terapeuta_id: sinHorario.id });
+
+      expect(res.status).toBe(201);
+      expect(await Cita.findByPk(res.body.data.id)).toMatchObject({
+        terapeuta_id: sinHorario.id,
+        fecha: LUNES,
+        hora_inicio: '09:00',
+      });
+
+      const listado = await request(app).get('/api/citas?estado=todas').set(bearer(token));
+      expect(listado.body.data.items.some((cita) => cita.id === res.body.data.id)).toBe(true);
     });
 
     test('CP-INT-118 las franjas contiguas del terapeuta se tratan como un solo bloque', async () => {
@@ -216,7 +277,11 @@ describe('Módulo de citas', () => {
         { dia_semana: 1, hora_inicio: '10:00', hora_fin: '12:00' },
       ]);
 
-      const cruza = await agendar({ terapeuta_id: partido.id, hora_inicio: '09:30', duracion_slots: 2 });
+      const cruza = await agendar({
+        terapeuta_id: partido.id,
+        hora_inicio: '09:30',
+        duracion_slots: 2,
+      });
       expect(cruza.status).toBe(201);
     });
   });
@@ -240,7 +305,9 @@ describe('Módulo de citas', () => {
       const res = await agendar({ ...otro, terapeuta_id: terapeuta.id });
 
       expect(res.status).toBe(409);
-      expect(res.body.errors).toEqual({ terapeuta_id: 'El terapeuta ya tiene una cita en ese horario.' });
+      expect(res.body.errors).toEqual({
+        terapeuta_id: 'El terapeuta ya tiene una cita en ese horario.',
+      });
     });
 
     test('CP-INT-120 rechaza un paciente que ya tiene otra cita a esa hora', async () => {
@@ -248,14 +315,20 @@ describe('Módulo de citas', () => {
       const res = await agendar({ ...otro, paciente_id: paciente.id });
 
       expect(res.status).toBe(409);
-      expect(res.body.errors).toEqual({ paciente_id: 'El paciente ya tiene una cita en ese horario.' });
+      expect(res.body.errors).toEqual({
+        paciente_id: 'El paciente ya tiene una cita en ese horario.',
+      });
     });
 
     test('CP-INT-120 informa todos los recursos en conflicto a la vez', async () => {
       const res = await agendar();
 
       expect(res.status).toBe(409);
-      expect(Object.keys(res.body.errors).sort()).toEqual(['paciente_id', 'sala_id', 'terapeuta_id']);
+      expect(Object.keys(res.body.errors).sort()).toEqual([
+        'paciente_id',
+        'sala_id',
+        'terapeuta_id',
+      ]);
       expect(res.body.message).toBe('La sala ya está ocupada en ese horario.');
     });
 
@@ -268,7 +341,12 @@ describe('Módulo de citas', () => {
 
     test('CP-INT-121 un traslape por el final también se rechaza', async () => {
       const otro = await recursosNuevos();
-      const res = await agendar({ ...otro, sala_id: sala.id, hora_inicio: '08:30', duracion_slots: 2 });
+      const res = await agendar({
+        ...otro,
+        sala_id: sala.id,
+        hora_inicio: '08:30',
+        duracion_slots: 2,
+      });
 
       expect(res.status).toBe(409);
     });
@@ -278,7 +356,12 @@ describe('Módulo de citas', () => {
       const larga = await agendar({ ...otro, hora_inicio: '13:00', duracion_slots: 4 });
       expect(larga.status).toBe(201);
 
-      const dentro = await agendar({ ...(await recursosNuevos()), sala_id: otro.sala_id, hora_inicio: '13:30', duracion_slots: 1 });
+      const dentro = await agendar({
+        ...(await recursosNuevos()),
+        sala_id: otro.sala_id,
+        hora_inicio: '13:30',
+        duracion_slots: 1,
+      });
       expect(dentro.status).toBe(409);
     });
 
@@ -301,7 +384,10 @@ describe('Módulo de citas', () => {
 
     test('CP-INT-123 una cita cancelada libera sala, terapeuta y paciente', async () => {
       const original = await Cita.findOne();
-      await request(app).post(`/api/citas/${original.id}/cancelar`).set(bearer(token)).send({ confirmar: true });
+      await request(app)
+        .post(`/api/citas/${original.id}/cancelar`)
+        .set(bearer(token))
+        .send({ confirmar: true });
 
       const reagendada = await agendar();
       expect(reagendada.status).toBe(201);
@@ -309,7 +395,10 @@ describe('Módulo de citas', () => {
 
     test('CP-INT-123 una cita cancelada no bloquea y la base nunca guarda ocupaciones de canceladas', async () => {
       const original = await Cita.findOne();
-      await request(app).post(`/api/citas/${original.id}/cancelar`).set(bearer(token)).send({ confirmar: true });
+      await request(app)
+        .post(`/api/citas/${original.id}/cancelar`)
+        .set(bearer(token))
+        .send({ confirmar: true });
 
       expect(await CitaOcupacion.count({ where: { cita_id: original.id } })).toBe(0);
     });
@@ -328,16 +417,22 @@ describe('Módulo de citas', () => {
       });
       expect(porId.body.data.paciente.telefono).toBe('9991234567');
 
-      const porFolio = await request(app).get(`/api/citas/folio/${creada.folio}`).set(bearer(token));
+      const porFolio = await request(app)
+        .get(`/api/citas/folio/${creada.folio}`)
+        .set(bearer(token));
       expect(porFolio.body.data.id).toBe(creada.id);
 
-      const minusculas = await request(app).get(`/api/citas/folio/${creada.folio.toLowerCase()}`).set(bearer(token));
+      const minusculas = await request(app)
+        .get(`/api/citas/folio/${creada.folio.toLowerCase()}`)
+        .set(bearer(token));
       expect(minusculas.status).toBe(200);
     });
 
     test('CP-INT-130 400 por folio mal formado, 404 por folio o id inexistente', async () => {
       expect((await request(app).get('/api/citas/folio/ABC').set(bearer(token))).status).toBe(400);
-      expect((await request(app).get('/api/citas/folio/CIT-2026-999999').set(bearer(token))).status).toBe(404);
+      expect(
+        (await request(app).get('/api/citas/folio/CIT-2026-999999').set(bearer(token))).status,
+      ).toBe(404);
       expect((await request(app).get('/api/citas/99999').set(bearer(token))).status).toBe(404);
     });
 
@@ -350,11 +445,36 @@ describe('Módulo de citas', () => {
         const otroT = await crearTerapeutaConHorario();
         const otroP = await crearPaciente();
 
-        pasada = await insertarCita({ paciente, terapeuta, sala, fecha: LUNES, hora_inicio: '09:00' }); // terminó 10:00
+        pasada = await insertarCita({
+          paciente,
+          terapeuta,
+          sala,
+          fecha: LUNES,
+          hora_inicio: '09:00',
+        }); // terminó 10:00
         await insertarCita({ paciente, terapeuta, sala, fecha: LUNES, hora_inicio: '12:00' }); // futura hoy
-        await insertarCita({ paciente: otroP, terapeuta: otroT, sala: otraSala, fecha: MARTES, hora_inicio: '09:00' });
-        await insertarCita({ paciente, terapeuta, sala, fecha: '2026-10-27', hora_inicio: '09:00' }); // semana siguiente
-        cancelada = await insertarCita({ paciente: otroP, terapeuta: otroT, sala: otraSala, fecha: LUNES, hora_inicio: '15:00', estado: 'cancelada' });
+        await insertarCita({
+          paciente: otroP,
+          terapeuta: otroT,
+          sala: otraSala,
+          fecha: MARTES,
+          hora_inicio: '09:00',
+        });
+        await insertarCita({
+          paciente,
+          terapeuta,
+          sala,
+          fecha: '2026-10-27',
+          hora_inicio: '09:00',
+        }); // semana siguiente
+        cancelada = await insertarCita({
+          paciente: otroP,
+          terapeuta: otroT,
+          sala: otraSala,
+          fecha: LUNES,
+          hora_inicio: '15:00',
+          estado: 'cancelada',
+        });
       });
 
       const listar = (consulta) => request(app).get(`/api/citas?${consulta}`).set(bearer(token));
@@ -402,7 +522,9 @@ describe('Módulo de citas', () => {
       test('CP-INT-132 filtra por sala, terapeuta y paciente, y combina con el estado', async () => {
         expect((await listar(`sala_id=${otraSala.id}`)).body.data.total).toBe(2);
         expect((await listar(`terapeuta_id=${terapeuta.id}`)).body.data.total).toBe(3);
-        expect((await listar(`paciente_id=${paciente.id}&estado=pendiente`)).body.data.total).toBe(2);
+        expect((await listar(`paciente_id=${paciente.id}&estado=pendiente`)).body.data.total).toBe(
+          2,
+        );
         expect((await listar(`sala_id=${otraSala.id}&estado=cancelada`)).body.data.total).toBe(1);
       });
 
@@ -412,7 +534,9 @@ describe('Módulo de citas', () => {
         expect(claves).toEqual([...claves].sort());
 
         const desc = await listar('orden=desc');
-        expect(desc.body.data.items.map((c) => `${c.fecha} ${c.hora_inicio}`)).toEqual([...claves].reverse());
+        expect(desc.body.data.items.map((c) => `${c.fecha} ${c.hora_inicio}`)).toEqual(
+          [...claves].reverse(),
+        );
       });
 
       test('CP-INT-133 pagina el resultado e incluye nombres de paciente, terapeuta y sala', async () => {
@@ -454,7 +578,8 @@ describe('Módulo de citas', () => {
       await Notificacion.destroy({ where: {} });
     });
 
-    const modificar = (cambios, id = cita.id) => request(app).put(`/api/citas/${id}`).set(bearer(token)).send(cambios);
+    const modificar = (cambios, id = cita.id) =>
+      request(app).put(`/api/citas/${id}`).set(bearer(token)).send(cambios);
 
     test('CP-INT-140 cambia la sala y libera la anterior', async () => {
       const res = await modificar({ sala_id: otraSala.id });
@@ -472,7 +597,9 @@ describe('Módulo de citas', () => {
       expect(res.status).toBe(200);
       expect(res.body.data).toMatchObject({ hora_inicio: '09:30', hora_fin: '10:30' });
 
-      const slots = (await CitaOcupacion.findAll({ where: { cita_id: cita.id }, order: [['slot', 'ASC']] })).map((o) => o.slot);
+      const slots = (
+        await CitaOcupacion.findAll({ where: { cita_id: cita.id }, order: [['slot', 'ASC']] })
+      ).map((o) => o.slot);
       expect(slots).toEqual([5, 6]);
     });
 
@@ -506,7 +633,9 @@ describe('Módulo de citas', () => {
     });
 
     test('CP-INT-141 cambiar de terapeuta exige que atienda en ese horario', async () => {
-      const acotado = await crearTerapeutaConHorario({}, [{ dia_semana: 1, hora_inicio: '13:00', hora_fin: '16:00' }]);
+      const acotado = await crearTerapeutaConHorario({}, [
+        { dia_semana: 1, hora_inicio: '13:00', hora_fin: '16:00' },
+      ]);
 
       const res = await modificar({ terapeuta_id: acotado.id });
       expect(res.status).toBe(400);
@@ -520,7 +649,11 @@ describe('Módulo de citas', () => {
       expect(res.status).toBe(200);
 
       const aviso = await Notificacion.findOne();
-      expect(aviso).toMatchObject({ tipo: 'modificacion', destinatario: 'nuevo@correo.com', estado: 'pendiente' });
+      expect(aviso).toMatchObject({
+        tipo: 'modificacion',
+        destinatario: 'nuevo@correo.com',
+        estado: 'pendiente',
+      });
 
       const dadoDeBaja = await crearPaciente();
       await dadoDeBaja.destroy();
@@ -540,7 +673,10 @@ describe('Módulo de citas', () => {
     });
 
     test('CP-INT-144 no se modifica una cita cancelada ni vencida', async () => {
-      await request(app).post(`/api/citas/${cita.id}/cancelar`).set(bearer(token)).send({ confirmar: true });
+      await request(app)
+        .post(`/api/citas/${cita.id}/cancelar`)
+        .set(bearer(token))
+        .send({ confirmar: true });
       const cancelada = await modificar({ sala_id: otraSala.id });
       expect(cancelada.status).toBe(409);
       expect(cancelada.body.message).toBe('La cita está cancelada y no puede modificarse.');
@@ -568,8 +704,18 @@ describe('Módulo de citas', () => {
     });
 
     test('CP-INT-150 exige confirmación explícita', async () => {
-      expect((await request(app).post(`/api/citas/${cita.id}/cancelar`).set(bearer(token)).send({})).status).toBe(400);
-      expect((await request(app).post(`/api/citas/${cita.id}/cancelar`).set(bearer(token)).send({ confirmar: false })).status).toBe(400);
+      expect(
+        (await request(app).post(`/api/citas/${cita.id}/cancelar`).set(bearer(token)).send({}))
+          .status,
+      ).toBe(400);
+      expect(
+        (
+          await request(app)
+            .post(`/api/citas/${cita.id}/cancelar`)
+            .set(bearer(token))
+            .send({ confirmar: false })
+        ).status,
+      ).toBe(400);
       expect((await Cita.findByPk(cita.id)).estado).toBe('pendiente');
     });
 
@@ -580,10 +726,15 @@ describe('Módulo de citas', () => {
         .send({ confirmar: true, motivo: '  El paciente se enfermó ' });
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toMatchObject({ estado: 'cancelada', motivo_cancelacion: 'El paciente se enfermó' });
+      expect(res.body.data).toMatchObject({
+        estado: 'cancelada',
+        motivo_cancelacion: 'El paciente se enfermó',
+      });
       expect(res.body.data.cancelada_at).toBeTruthy();
       expect(await CitaOcupacion.count({ where: { cita_id: cita.id } })).toBe(0);
-      expect(await Notificacion.count({ where: { tipo: 'cancelacion', estado: 'pendiente' } })).toBe(1);
+      expect(
+        await Notificacion.count({ where: { tipo: 'cancelacion', estado: 'pendiente' } }),
+      ).toBe(1);
     });
 
     test('CP-INT-151 cancela ingresando el folio', async () => {
@@ -603,13 +754,22 @@ describe('Módulo de citas', () => {
     });
 
     test('CP-INT-152 no se cancela dos veces ni una cita vencida', async () => {
-      await request(app).post(`/api/citas/${cita.id}/cancelar`).set(bearer(token)).send({ confirmar: true });
-      const otraVez = await request(app).post(`/api/citas/${cita.id}/cancelar`).set(bearer(token)).send({ confirmar: true });
+      await request(app)
+        .post(`/api/citas/${cita.id}/cancelar`)
+        .set(bearer(token))
+        .send({ confirmar: true });
+      const otraVez = await request(app)
+        .post(`/api/citas/${cita.id}/cancelar`)
+        .set(bearer(token))
+        .send({ confirmar: true });
       expect(otraVez.status).toBe(409);
       expect(otraVez.body.message).toBe('La cita ya está cancelada.');
 
       const vencida = await insertarCita({ paciente, terapeuta, sala, fecha: '2026-10-14' });
-      const res = await request(app).post(`/api/citas/${vencida.id}/cancelar`).set(bearer(token)).send({ confirmar: true });
+      const res = await request(app)
+        .post(`/api/citas/${vencida.id}/cancelar`)
+        .set(bearer(token))
+        .send({ confirmar: true });
       expect(res.status).toBe(409);
       expect(res.body.message).toBe('La cita ya venció y no puede cancelarse.');
     });
@@ -625,14 +785,18 @@ describe('Módulo de citas', () => {
     test('CP-INT-153 sin correo del paciente no se encola aviso pero la cancelación procede', async () => {
       await paciente.update({ correo: null });
 
-      const res = await request(app).post(`/api/citas/${cita.id}/cancelar`).set(bearer(token)).send({ confirmar: true });
+      const res = await request(app)
+        .post(`/api/citas/${cita.id}/cancelar`)
+        .set(bearer(token))
+        .send({ confirmar: true });
       expect(res.status).toBe(200);
       expect(await Notificacion.count()).toBe(0);
     });
   });
 
   describe('disponibilidad para el formulario', () => {
-    const disponibilidad = (consulta) => request(app).get(`/api/citas/disponibilidad?${consulta}`).set(bearer(token));
+    const disponibilidad = (consulta) =>
+      request(app).get(`/api/citas/disponibilidad?${consulta}`).set(bearer(token));
     const horas = (res) => res.body.data.inicios.map((i) => i.hora_inicio);
 
     let acotado;
@@ -664,7 +828,9 @@ describe('Módulo de citas', () => {
       await insertarCita({ paciente, terapeuta, sala, fecha: LUNES, hora_inicio: '09:00' }); // sala A 09:00–10:00
 
       const res = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}`);
-      const salasPorHora = Object.fromEntries(res.body.data.inicios.map((i) => [i.hora_inicio, i.salas_libres.map((s) => s.nombre)]));
+      const salasPorHora = Object.fromEntries(
+        res.body.data.inicios.map((i) => [i.hora_inicio, i.salas_libres.map((s) => s.nombre)]),
+      );
 
       expect(salasPorHora).toEqual({
         '08:00': ['Sala A', 'Sala B'],
@@ -680,14 +846,26 @@ describe('Módulo de citas', () => {
     test('CP-INT-160 si no queda ninguna sala libre, el horario desaparece', async () => {
       const otroT = await crearTerapeutaConHorario();
       await insertarCita({ paciente, terapeuta, sala, fecha: LUNES, hora_inicio: '09:00' });
-      await insertarCita({ paciente: await crearPaciente(), terapeuta: otroT, sala: otraSala, fecha: LUNES, hora_inicio: '09:00' });
+      await insertarCita({
+        paciente: await crearPaciente(),
+        terapeuta: otroT,
+        sala: otraSala,
+        fecha: LUNES,
+        hora_inicio: '09:00',
+      });
 
       const res = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}`);
       expect(horas(res)).toEqual(['08:00', '10:00', '10:30', '11:00']);
     });
 
     test('CP-INT-161 excluye los horarios donde el terapeuta ya tiene cita', async () => {
-      await insertarCita({ paciente, terapeuta: acotado, sala, fecha: LUNES, hora_inicio: '09:00' });
+      await insertarCita({
+        paciente,
+        terapeuta: acotado,
+        sala,
+        fecha: LUNES,
+        hora_inicio: '09:00',
+      });
 
       const res = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}`);
       expect(horas(res)).toEqual(['08:00', '10:00', '10:30', '11:00']);
@@ -698,30 +876,52 @@ describe('Módulo de citas', () => {
       await insertarCita({ paciente, terapeuta: otroT, sala, fecha: LUNES, hora_inicio: '10:00' });
 
       const sinPaciente = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}`);
-      const conPaciente = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}&paciente_id=${paciente.id}`);
+      const conPaciente = await disponibilidad(
+        `fecha=${LUNES}&terapeuta_id=${acotado.id}&paciente_id=${paciente.id}`,
+      );
 
       expect(horas(sinPaciente)).toContain('10:00');
       expect(horas(conPaciente)).toEqual(['08:00', '08:30', '09:00', '11:00']);
     });
 
     test('CP-INT-162 respeta la duración solicitada', async () => {
-      const res = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}&duracion_slots=4`);
+      const res = await disponibilidad(
+        `fecha=${LUNES}&terapeuta_id=${acotado.id}&duracion_slots=4`,
+      );
 
       expect(horas(res)).toEqual(['08:00', '08:30', '09:00', '09:30', '10:00']);
       expect(res.body.data.inicios[4]).toMatchObject({ hora_inicio: '10:00', hora_fin: '12:00' });
 
-      const larga = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}&duracion_slots=1`);
+      const larga = await disponibilidad(
+        `fecha=${LUNES}&terapeuta_id=${acotado.id}&duracion_slots=1`,
+      );
       expect(larga.body.data.inicios).toHaveLength(8);
     });
 
     test('CP-INT-162 excluir_cita_id ignora los bloques de la cita que se está editando', async () => {
-      const propia = await insertarCita({ paciente, terapeuta: acotado, sala, fecha: LUNES, hora_inicio: '09:00' });
+      const propia = await insertarCita({
+        paciente,
+        terapeuta: acotado,
+        sala,
+        fecha: LUNES,
+        hora_inicio: '09:00',
+      });
 
       const sinExcluir = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}`);
-      const excluyendo = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}&excluir_cita_id=${propia.id}`);
+      const excluyendo = await disponibilidad(
+        `fecha=${LUNES}&terapeuta_id=${acotado.id}&excluir_cita_id=${propia.id}`,
+      );
 
       expect(horas(sinExcluir)).toEqual(['08:00', '10:00', '10:30', '11:00']);
-      expect(horas(excluyendo)).toEqual(['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00']);
+      expect(horas(excluyendo)).toEqual([
+        '08:00',
+        '08:30',
+        '09:00',
+        '09:30',
+        '10:00',
+        '10:30',
+        '11:00',
+      ]);
     });
 
     test('CP-INT-163 hoy no ofrece horas que ya pasaron', async () => {
@@ -739,7 +939,9 @@ describe('Módulo de citas', () => {
       expect(sabado.body.data.motivo).toBe('La clínica no atiende ese día de la semana.');
 
       const martes = await disponibilidad(`fecha=${MARTES}&terapeuta_id=${acotado.id}`);
-      expect(martes.body.data.motivo).toBe('El terapeuta no tiene horario configurado para ese día.');
+      expect(martes.body.data.motivo).toBe(
+        'El terapeuta no tiene horario configurado para ese día.',
+      );
 
       await sala.destroy();
       await otraSala.destroy();
@@ -747,15 +949,27 @@ describe('Módulo de citas', () => {
       expect(sinSalas.body.data.motivo).toBe('No hay salas activas.');
     });
 
+    test('CP-INT-163 ofrece horario de clínica cuando el terapeuta no tiene horarios configurados', async () => {
+      const sinHorario = await crearTerapeutaConHorario({}, []);
+      const res = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${sinHorario.id}`);
+
+      expect(res.status).toBe(200);
+      expect(horas(res)).toContain('09:00');
+    });
+
     test('CP-INT-163 valida los parámetros y que el terapeuta exista', async () => {
       expect((await disponibilidad(`fecha=${LUNES}`)).status).toBe(400);
       expect((await disponibilidad(`terapeuta_id=${acotado.id}`)).status).toBe(400);
       expect((await disponibilidad(`fecha=${LUNES}&terapeuta_id=99999`)).status).toBe(404);
-      expect((await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}&duracion_slots=9`)).status).toBe(400);
+      expect(
+        (await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}&duracion_slots=9`)).status,
+      ).toBe(400);
     });
 
     test('CP-INT-164 lo que la disponibilidad ofrece, el alta lo acepta (coherencia)', async () => {
-      const res = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}&paciente_id=${paciente.id}`);
+      const res = await disponibilidad(
+        `fecha=${LUNES}&terapeuta_id=${acotado.id}&paciente_id=${paciente.id}`,
+      );
 
       for (const inicio of res.body.data.inicios) {
         const alta = await agendar({
@@ -766,7 +980,9 @@ describe('Módulo de citas', () => {
         expect([201, 409]).toContain(alta.status);
         if (alta.status === 201) {
           // Tras agendar, ese horario ya no debe ofrecerse.
-          const despues = await disponibilidad(`fecha=${LUNES}&terapeuta_id=${acotado.id}&paciente_id=${paciente.id}`);
+          const despues = await disponibilidad(
+            `fecha=${LUNES}&terapeuta_id=${acotado.id}&paciente_id=${paciente.id}`,
+          );
           expect(horas(despues)).not.toContain(inicio.hora_inicio);
           break;
         }
@@ -778,18 +994,41 @@ describe('Módulo de citas', () => {
     test('CP-INT-170 no se da de baja un paciente o terapeuta con citas pendientes futuras', async () => {
       const creada = (await agendar()).body.data;
 
-      const paciente409 = await request(app).delete(`/api/pacientes/${paciente.id}`).set(bearer(token)).send({ confirmar: true });
+      const paciente409 = await request(app)
+        .delete(`/api/pacientes/${paciente.id}`)
+        .set(bearer(token))
+        .send({ confirmar: true });
       expect(paciente409.status).toBe(409);
       expect(paciente409.body.message).toContain(creada.folio);
 
-      const terapeuta409 = await request(app).delete(`/api/terapeutas/${terapeuta.id}`).set(bearer(token)).send({ confirmar: true });
+      const terapeuta409 = await request(app)
+        .delete(`/api/terapeutas/${terapeuta.id}`)
+        .set(bearer(token))
+        .send({ confirmar: true });
       expect(terapeuta409.status).toBe(409);
       expect(terapeuta409.body.message).toContain(creada.folio);
 
-      await request(app).post(`/api/citas/${creada.id}/cancelar`).set(bearer(token)).send({ confirmar: true });
+      await request(app)
+        .post(`/api/citas/${creada.id}/cancelar`)
+        .set(bearer(token))
+        .send({ confirmar: true });
 
-      expect((await request(app).delete(`/api/pacientes/${paciente.id}`).set(bearer(token)).send({ confirmar: true })).status).toBe(200);
-      expect((await request(app).delete(`/api/terapeutas/${terapeuta.id}`).set(bearer(token)).send({ confirmar: true })).status).toBe(200);
+      expect(
+        (
+          await request(app)
+            .delete(`/api/pacientes/${paciente.id}`)
+            .set(bearer(token))
+            .send({ confirmar: true })
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await request(app)
+            .delete(`/api/terapeutas/${terapeuta.id}`)
+            .set(bearer(token))
+            .send({ confirmar: true })
+        ).status,
+      ).toBe(200);
     });
 
     test('CP-INT-170 el mensaje de baja resume los folios cuando son muchos', async () => {
@@ -797,7 +1036,10 @@ describe('Módulo de citas', () => {
         await agendar({ hora_inicio: hora });
       }
 
-      const res = await request(app).delete(`/api/pacientes/${paciente.id}`).set(bearer(token)).send({ confirmar: true });
+      const res = await request(app)
+        .delete(`/api/pacientes/${paciente.id}`)
+        .set(bearer(token))
+        .send({ confirmar: true });
       expect(res.status).toBe(409);
       expect(res.body.message).toMatch(/7 cita\(s\).*y 2 más/);
     });
@@ -863,16 +1105,27 @@ describe('Módulo de citas', () => {
 
     test('CP-INT-181 la bitácora registra alta, modificación y cancelación sin datos personales', async () => {
       const creada = (await agendar()).body.data;
-      await request(app).put(`/api/citas/${creada.id}`).set(bearer(token)).send({ sala_id: otraSala.id });
+      await request(app)
+        .put(`/api/citas/${creada.id}`)
+        .set(bearer(token))
+        .send({ sala_id: otraSala.id });
       await request(app).get(`/api/citas/${creada.id}`).set(bearer(token));
       await request(app)
         .post(`/api/citas/${creada.id}/cancelar`)
         .set(bearer(token))
         .send({ confirmar: true, motivo: 'Motivo con dato personal: diagnóstico X' });
 
-      const registros = await AuditLog.findAll({ where: { entidad: 'cita' }, order: [['id', 'ASC']] });
+      const registros = await AuditLog.findAll({
+        where: { entidad: 'cita' },
+        order: [['id', 'ASC']],
+      });
 
-      expect(registros.map((r) => r.accion)).toEqual(['crear', 'actualizar', 'consultar', 'cancelar']);
+      expect(registros.map((r) => r.accion)).toEqual([
+        'crear',
+        'actualizar',
+        'consultar',
+        'cancelar',
+      ]);
       expect(registros[0].detalle).toEqual({ folio: creada.folio });
       expect(registros[1].detalle).toEqual({ campos: ['sala_id'] });
       expect(registros[3].detalle).toEqual({ con_motivo: true });

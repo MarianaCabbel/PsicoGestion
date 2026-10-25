@@ -32,6 +32,7 @@ module.exports = (sequelize, DataTypes) =>
       },
       consentimiento_at: { type: DataTypes.DATE, allowNull: true },
       aviso_version: { type: DataTypes.STRING(20), allowNull: true },
+      anonimizado_at: { type: DataTypes.DATE, allowNull: true },
       creado_por: { type: DataTypes.INTEGER, allowNull: true },
       baja_por: { type: DataTypes.INTEGER, allowNull: true },
       created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
@@ -52,5 +53,5 @@ module.exports = (sequelize, DataTypes) =>
       paranoid: true,
       deletedAt: 'baja_at',
       indexes: [{ fields: ['nombre_completo'] }, { fields: ['telefono'] }],
-    }
+    },
   );
