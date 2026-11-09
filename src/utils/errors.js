@@ -1,3 +1,5 @@
+const { ConnectionError, TimeoutError } = require('sequelize');
+
 class AppError extends Error {
   /**
    * @param {string} message Mensaje apto para mostrar al usuario.
@@ -19,6 +21,7 @@ class AppError extends Error {
 const errorHandler = (err, req, res, _next) => {
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Error interno del servidor.';
+  let esErrorDeConexion = false;
 
   if (err.type === 'entity.parse.failed') {
     statusCode = 400;
@@ -29,13 +32,19 @@ const errorHandler = (err, req, res, _next) => {
   } else if (err.name === 'SequelizeUniqueConstraintError') {
     statusCode = 409;
     message = 'Ya existe un registro con esos datos.';
+  } else if (err instanceof ConnectionError || err instanceof TimeoutError) {
+    // El cliente conserva lo que escribió: nada se guardó y puede reintentar.
+    statusCode = 503;
+    message = 'No se pudo guardar por un problema de conexión con el servidor. Inténtalo de nuevo.';
+    esErrorDeConexion = true;
   }
 
   if (statusCode >= 500) {
     // Nunca se registra el cuerpo de la petición: puede contener datos personales.
     console.error(`[error] ${req.method} ${req.originalUrl}: ${err.stack || err.message}`);
 
-    if (process.env.NODE_ENV === 'production') {
+    // El 503 de conexión lleva mensaje accionable para el usuario; no se genériciza.
+    if (process.env.NODE_ENV === 'production' && !esErrorDeConexion) {
       message = 'Error interno del servidor.';
     }
   }
