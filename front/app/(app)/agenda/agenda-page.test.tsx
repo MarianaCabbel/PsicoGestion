@@ -2,7 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { Profiler } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/lib/api';
 import AgendaPage from './page';
 
@@ -17,6 +17,9 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: pushMock }) }));
 
 describe('AgendaPage', () => {
   beforeEach(() => {
+    // La agenda parte de la fecha real; se fija la semana de las citas del mock.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 20, 12));
     apiMock.mockReset();
     Object.defineProperty(HTMLDialogElement.prototype, 'showModal', {
       configurable: true,
@@ -67,6 +70,10 @@ describe('AgendaPage', () => {
       }
       return Promise.reject(new Error(`Unexpected API request: ${String(path)}`));
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('renders 42 appointments within the render budget and exposes keyboard-accessible actions', async () => {
