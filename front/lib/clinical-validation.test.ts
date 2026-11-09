@@ -3,6 +3,8 @@ import {
   affectedAppointmentFolios,
   curpCheckDigit,
   curpError,
+  edadEnAnios,
+  hoyEnClinica,
   patientSchema,
   scheduleValidationError,
   therapistSchema,
@@ -11,6 +13,20 @@ import {
 } from './clinical-validation';
 
 const alphabet = 'BCDFGHJKLMNPQRSTVWXYZ';
+
+/** Fecha (YYYY-MM-DD) de hace `anios` años, conservando mes y día. */
+function fechaHaceAnios(anios: number) {
+  const [year, month, day] = hoyEnClinica().split('-').map(Number);
+  return `${String(year - anios).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function mensajesDeFecha(resultado: ReturnType<typeof therapistSchema.safeParse>) {
+  return resultado.success
+    ? []
+    : resultado.error.issues
+        .filter((issue) => issue.path[0] === 'fecha_nacimiento')
+        .map((issue) => issue.message);
+}
 
 function validCurp() {
   const consonants = [0, 7, 14].map((index) => alphabet[index % alphabet.length]).join('');
@@ -57,6 +73,78 @@ describe('clinical validation', () => {
     );
     expect(therapistSchema.safeParse({ ...therapist, cedula_profesional: '123456' }).success).toBe(
       false,
+    );
+  });
+
+  it('enforces the 50-character name limit and allowed characters', () => {
+    const therapist = {
+      telefono: '9991234567',
+      correo: 'ana@uady.mx',
+      fecha_nacimiento: '1985-06-15',
+      cedula_profesional: '1234567',
+    };
+    expect(
+      therapistSchema.safeParse({ ...therapist, nombre_completo: 'a'.repeat(51) }).success,
+    ).toBe(false);
+    expect(
+      therapistSchema.safeParse({ ...therapist, nombre_completo: 'Ana 123' }).success,
+    ).toBe(false);
+    expect(
+      therapistSchema.safeParse({ ...therapist, nombre_completo: 'María Pérez-Núñez' }).success,
+    ).toBe(true);
+  });
+
+  it('requires therapists to be between 21 and 120 years old and not born in the future', () => {
+    const therapist = {
+      nombre_completo: 'Ana Terapeuta',
+      telefono: '9991234567',
+      correo: 'ana@uady.mx',
+      cedula_profesional: '1234567',
+    };
+
+    expect(edadEnAnios(fechaHaceAnios(21))).toBe(21);
+    expect(
+      therapistSchema.safeParse({ ...therapist, fecha_nacimiento: fechaHaceAnios(21) }).success,
+    ).toBe(true);
+    expect(
+      mensajesDeFecha(
+        therapistSchema.safeParse({ ...therapist, fecha_nacimiento: fechaHaceAnios(20) }),
+      ),
+    ).toContain('El terapeuta debe tener al menos 21 años.');
+    expect(
+      mensajesDeFecha(
+        therapistSchema.safeParse({ ...therapist, fecha_nacimiento: fechaHaceAnios(121) }),
+      ),
+    ).toContain('La fecha de nacimiento no es válida.');
+    expect(
+      mensajesDeFecha(
+        therapistSchema.safeParse({ ...therapist, fecha_nacimiento: fechaHaceAnios(-1) }),
+      ),
+    ).toContain('La fecha de nacimiento no puede ser futura.');
+  });
+
+  it('requires patients to be at least 7 years old and not born in the future', () => {
+    const base = {
+      nombre_completo: 'María Pérez',
+      curp: validCurp(),
+      sexo: 'H' as const,
+      telefono: '9991234567',
+      correo: '',
+      acepta_aviso: true,
+    };
+    const mensajes = (fecha_nacimiento: string) => {
+      const resultado = patientSchema.safeParse({ ...base, fecha_nacimiento });
+      return resultado.success
+        ? []
+        : resultado.error.issues
+            .filter((issue) => issue.path[0] === 'fecha_nacimiento')
+            .map((issue) => issue.message);
+    };
+
+    expect(mensajes(fechaHaceAnios(6))).toContain('La edad mínima del paciente es de 7 años.');
+    expect(mensajes(fechaHaceAnios(121))).toContain('La fecha de nacimiento no es válida.');
+    expect(mensajes(fechaHaceAnios(-1))).toContain(
+      'La fecha de nacimiento no puede ser futura.',
     );
   });
 

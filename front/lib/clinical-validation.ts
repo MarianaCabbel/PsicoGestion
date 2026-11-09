@@ -1,5 +1,96 @@
 import { z } from 'zod';
 
+/** Parámetros de operación equivalentes a `src/config/clinica.js`. */
+export const EDAD_MINIMA_PACIENTE = 7;
+export const EDAD_MINIMA_TERAPEUTA = 21;
+export const EDAD_MAXIMA = 120;
+export const NOMBRE_MAXIMO = 50;
+
+const NOMBRE_PERMITIDO = /^[\p{L}\p{M}' .-]+$/u;
+const NOMBRE_CON_LETRAS = /\p{L}/u;
+
+/** Fecha actual (YYYY-MM-DD) en la zona horaria de la clínica. */
+export function hoyEnClinica(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Merida',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? '';
+
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
+
+/** Edad cumplida en años a la fecha `hoy` (ambas YYYY-MM-DD). */
+export function edadEnAnios(fechaNacimiento: string, hoy = hoyEnClinica()) {
+  const [anioNac, mesNac, diaNac] = fechaNacimiento.split('-').map(Number);
+  const [anioHoy, mesHoy, diaHoy] = hoy.split('-').map(Number);
+
+  let edad = anioHoy - anioNac;
+  if (mesHoy < mesNac || (mesHoy === mesNac && diaHoy < diaNac)) {
+    edad -= 1;
+  }
+
+  return edad;
+}
+
+function nombrePersona(etiqueta: string) {
+  return z
+    .string()
+    .trim()
+    .min(2, `${etiqueta} debe tener al menos 2 caracteres.`)
+    .max(NOMBRE_MAXIMO, `${etiqueta} no puede exceder ${NOMBRE_MAXIMO} caracteres.`)
+    .regex(
+      NOMBRE_PERMITIDO,
+      `${etiqueta} solo puede contener letras, espacios, apóstrofo, punto y guion.`,
+    )
+    .regex(NOMBRE_CON_LETRAS, `${etiqueta} debe contener letras.`)
+    .transform((value) => value.replace(/\s+/g, ' '));
+}
+
+function fechaCalendario(etiqueta: string) {
+  return z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, `${etiqueta} es obligatoria.`)
+    .refine((value) => {
+      const date = new Date(`${value}T00:00:00Z`);
+      return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
+    }, `${etiqueta} no es una fecha válida (AAAA-MM-DD).`);
+}
+
+/** Verifica que no sea futura y que la edad esté dentro de [min, max]. */
+function agregarReglasDeEdad(
+  fecha: string,
+  context: z.core.$RefinementCtx,
+  { minima, mensajeMinima }: { minima: number; mensajeMinima: string },
+) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return;
+
+  const hoy = hoyEnClinica();
+  if (fecha > hoy) {
+    context.addIssue({
+      code: 'custom',
+      path: ['fecha_nacimiento'],
+      message: 'La fecha de nacimiento no puede ser futura.',
+    });
+    return;
+  }
+
+  const edad = edadEnAnios(fecha, hoy);
+  if (edad < minima) {
+    context.addIssue({ code: 'custom', path: ['fecha_nacimiento'], message: mensajeMinima });
+  } else if (edad > EDAD_MAXIMA) {
+    context.addIssue({
+      code: 'custom',
+      path: ['fecha_nacimiento'],
+      message: 'La fecha de nacimiento no es válida.',
+    });
+  }
+}
+
 const CURP_ALPHABET = '0123456789ABCDEFGHIJKLMNÑOPQRSTUVWXYZ';
 const CURP_PATTERN =
   /^[A-Z][AEIOUX][A-Z]{2}\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[HMX](AS|BC|BS|CC|CL|CM|CS|CH|DF|DG|GT|GR|HG|JC|MC|MN|MS|NT|NL|OC|PL|QT|QR|SP|SL|SR|TC|TS|TL|VZ|YN|ZS|NE)[B-DF-HJ-NP-TV-Z]{3}[A-Z\d]\d$/;
@@ -55,7 +146,7 @@ export function curpError(value: string) {
 
 export const patientSchema = z
   .object({
-    nombre_completo: z.string().trim().min(2, 'El nombre es obligatorio.').max(100),
+    nombre_completo: nombrePersona('El nombre completo'),
     curp: z
       .string()
       .transform(normalizeCurp)
@@ -63,19 +154,20 @@ export const patientSchema = z
         message: 'La CURP no es válida.',
       }),
     sexo: z.enum(['H', 'M', 'X'], { error: 'Selecciona el sexo.' }),
-    fecha_nacimiento: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha de nacimiento es obligatoria.')
-      .refine((value) => {
-        const date = new Date(`${value}T00:00:00Z`);
-        return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
-      }, 'La fecha no es válida.'),
+    fecha_nacimiento: fechaCalendario('La fecha de nacimiento'),
     telefono: z
       .string()
       .transform((value) => value.replace(/\D/g, ''))
       .pipe(z.string().regex(/^\d{10}$/, 'El teléfono debe tener 10 dígitos.')),
     correo: z
-      .union([z.literal(''), z.email('El correo no es válido.')])
+      .union([
+        z.literal(''),
+        z
+          .string()
+          .trim()
+          .max(150, 'El correo no puede exceder 150 caracteres.')
+          .pipe(z.email('El correo electrónico no es válido.')),
+      ])
       .transform((value) => value.toLowerCase()),
     acepta_aviso: z.boolean(),
   })
@@ -87,6 +179,10 @@ export const patientSchema = z
         message: 'Debes aceptar el aviso de privacidad para registrar al paciente.',
       });
     }
+    agregarReglasDeEdad(values.fecha_nacimiento, context, {
+      minima: EDAD_MINIMA_PACIENTE,
+      mensajeMinima: `La edad mínima del paciente es de ${EDAD_MINIMA_PACIENTE} años.`,
+    });
     const personalData = curpPersonalData(values.curp);
     if (!personalData) return;
     if (personalData.fecha_nacimiento !== values.fecha_nacimiento) {
@@ -108,25 +204,31 @@ export const patientSchema = z
 export type PatientFormValues = z.input<typeof patientSchema>;
 export type PatientPayload = z.output<typeof patientSchema>;
 
-export const therapistSchema = z.object({
-  nombre_completo: z.string().trim().min(2, 'El nombre es obligatorio.').max(100),
-  telefono: z
-    .string()
-    .transform((value) => value.replace(/\D/g, ''))
-    .pipe(z.string().regex(/^\d{10}$/, 'El teléfono debe tener 10 dígitos.')),
-  correo: z.email('El correo no es válido.').transform((value) => value.toLowerCase()),
-  fecha_nacimiento: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha de nacimiento es obligatoria.')
-    .refine((value) => {
-      const date = new Date(`${value}T00:00:00Z`);
-      return !Number.isNaN(date.valueOf()) && date.toISOString().slice(0, 10) === value;
-    }, 'La fecha no es válida.'),
-  cedula_profesional: z
-    .string()
-    .trim()
-    .regex(/^\d{7,8}$/, 'La cédula debe tener 7 u 8 dígitos.'),
-});
+export const therapistSchema = z
+  .object({
+    nombre_completo: nombrePersona('El nombre completo'),
+    telefono: z
+      .string()
+      .transform((value) => value.replace(/\D/g, ''))
+      .pipe(z.string().regex(/^\d{10}$/, 'El teléfono debe tener 10 dígitos.')),
+    correo: z
+      .string()
+      .trim()
+      .max(150, 'El correo no puede exceder 150 caracteres.')
+      .pipe(z.email('El correo electrónico no es válido.'))
+      .transform((value) => value.toLowerCase()),
+    fecha_nacimiento: fechaCalendario('La fecha de nacimiento'),
+    cedula_profesional: z
+      .string()
+      .trim()
+      .regex(/^\d{7,8}$/, 'La cédula debe tener 7 u 8 dígitos.'),
+  })
+  .superRefine((values, context) => {
+    agregarReglasDeEdad(values.fecha_nacimiento, context, {
+      minima: EDAD_MINIMA_TERAPEUTA,
+      mensajeMinima: `El terapeuta debe tener al menos ${EDAD_MINIMA_TERAPEUTA} años.`,
+    });
+  });
 
 export type TherapistFormValues = z.input<typeof therapistSchema>;
 export type TherapistPayload = z.output<typeof therapistSchema>;

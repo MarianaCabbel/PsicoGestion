@@ -92,7 +92,7 @@ export function PatientForm({
         autoComplete="name"
         error={errors.nombre_completo?.message}
         label="Nombre completo"
-        maxLength={100}
+        maxLength={50}
         {...register('nombre_completo')}
       />
       <Input
@@ -127,6 +127,7 @@ export function PatientForm({
         autoComplete="email"
         error={errors.correo?.message}
         label="Correo electrónico (opcional)"
+        maxLength={150}
         type="email"
         {...register('correo')}
       />

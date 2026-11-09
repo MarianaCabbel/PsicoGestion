@@ -135,6 +135,7 @@ export function TherapistForm({
           autoComplete="name"
           error={errors.nombre_completo?.message}
           label="Nombre completo"
+          maxLength={50}
           {...register('nombre_completo')}
         />
         <Input
@@ -147,6 +148,7 @@ export function TherapistForm({
           autoComplete="email"
           error={errors.correo?.message}
           label="Correo electrónico"
+          maxLength={150}
           type="email"
           {...register('correo')}
         />
