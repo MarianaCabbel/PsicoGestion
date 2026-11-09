@@ -66,7 +66,7 @@ async function buscarPorId(id, { incluirBajas = true, transaction, conFoto = fal
   return terapeuta;
 }
 
-async function asegurarUnicos({ correo, cedula_profesional }, { excluirId, transaction } = {}) {
+async function asegurarUnicos({ correo, cedula_profesional, telefono }, { excluirId, transaction } = {}) {
   const errores = {};
   const excluir = excluirId ? { id: { [Op.ne]: excluirId } } : {};
 
@@ -76,6 +76,15 @@ async function asegurarUnicos({ correo, cedula_profesional }, { excluirId, trans
       errores.correo = existente.baja_at
         ? 'Existe un terapeuta dado de baja con este correo. Solicita su reactivación a un administrador.'
         : 'Ya existe un terapeuta registrado con este correo.';
+    }
+  }
+
+  if (telefono) {
+    const existente = await Terapeuta.findOne({ where: { telefono, ...excluir }, paranoid: false, transaction });
+    if (existente) {
+      errores.telefono = existente.baja_at
+        ? 'Existe un terapeuta dado de baja con este teléfono. Solicita su reactivación a un administrador.'
+        : 'Ya existe un terapeuta registrado con este teléfono.';
     }
   }
 
@@ -114,7 +123,7 @@ async function crear(datos, contexto) {
     });
   } catch (error) {
     if (error instanceof UniqueConstraintError) {
-      throw new AppError('Ya existe un terapeuta con ese correo o cédula profesional.', 409);
+      throw new AppError('Ya existe un terapeuta con ese correo, teléfono o cédula profesional.', 409);
     }
     throw error;
   }
@@ -192,6 +201,7 @@ async function actualizar(id, cambios, contexto) {
     await asegurarUnicos(
       {
         correo: cambios.correo && cambios.correo !== terapeuta.correo ? cambios.correo : undefined,
+        telefono: cambios.telefono && cambios.telefono !== terapeuta.telefono ? cambios.telefono : undefined,
         cedula_profesional:
           cambios.cedula_profesional && cambios.cedula_profesional !== terapeuta.cedula_profesional
             ? cambios.cedula_profesional

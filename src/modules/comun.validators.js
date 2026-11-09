@@ -15,7 +15,7 @@ function nombrePersona(etiqueta = 'El nombre completo') {
   return textoRequerido(`${etiqueta} es obligatorio.`, (base) =>
     base
       .min(2, `${etiqueta} debe tener al menos 2 caracteres.`)
-      .max(100, `${etiqueta} no puede exceder 100 caracteres.`)
+      .max(50, `${etiqueta} no puede exceder 50 caracteres.`)
       .regex(/^[\p{L}\p{M}' .-]+$/u, `${etiqueta} solo puede contener letras, espacios, apóstrofo, punto y guion.`)
       .regex(/\p{L}/u, `${etiqueta} debe contener letras.`)
       .transform((valor) => valor.replace(/\s+/g, ' '))

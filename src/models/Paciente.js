@@ -4,9 +4,9 @@ module.exports = (sequelize, DataTypes) =>
     {
       id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
       nombre_completo: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(50),
         allowNull: false,
-        validate: { notEmpty: true, len: [2, 100] },
+        validate: { notEmpty: true, len: [2, 50] },
       },
       curp: {
         type: DataTypes.STRING(18),

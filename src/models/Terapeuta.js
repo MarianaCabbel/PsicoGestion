@@ -4,13 +4,14 @@ module.exports = (sequelize, DataTypes) =>
     {
       id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
       nombre_completo: {
-        type: DataTypes.STRING(100),
+        type: DataTypes.STRING(50),
         allowNull: false,
-        validate: { notEmpty: true, len: [2, 100] },
+        validate: { notEmpty: true, len: [2, 50] },
       },
       telefono: {
         type: DataTypes.STRING(10),
         allowNull: false,
+        unique: true,
         validate: { is: /^\d{10}$/ },
       },
       correo: {
