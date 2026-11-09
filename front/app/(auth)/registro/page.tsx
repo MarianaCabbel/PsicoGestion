@@ -8,6 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
+import {
+  isInstitutionalEmail,
+  isPasswordValid,
+  isValidName,
+  isValidPhone,
+  passwordError,
+} from '@/lib/auth-validation';
 
 type Registration = {
   nombre_completo: string;
@@ -25,6 +32,23 @@ const initialValues: Registration = {
   confirmar_password: '',
 };
 
+/** Validación previa al envío, con los mismos mensajes que el backend. */
+function registrationError(values: Registration): string | null {
+  if (!values.nombre_completo.trim()) return 'El nombre completo es obligatorio.';
+  if (!isValidName(values.nombre_completo)) {
+    return 'El nombre completo no puede exceder 50 caracteres.';
+  }
+  if (!isValidPhone(values.telefono)) return 'El teléfono debe tener 10 dígitos.';
+  if (!isInstitutionalEmail(values.correo_institucional)) {
+    return 'El correo debe ser institucional de la UADY (@…uady.mx).';
+  }
+  if (values.password !== values.confirmar_password) {
+    return 'La contraseña y la confirmación no coinciden.';
+  }
+  if (!isPasswordValid(values.password)) return passwordError(values.password);
+  return null;
+}
+
 export default function RegistrationPage() {
   const [values, setValues] = useState(initialValues);
   const [busy, setBusy] = useState(false);
@@ -36,6 +60,11 @@ export default function RegistrationPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const error = registrationError(values);
+    if (error) {
+      toast.error(error);
+      return;
+    }
     setBusy(true);
     try {
       await api('/api/auth/registro', {
@@ -67,6 +96,7 @@ export default function RegistrationPage() {
           <Input
             autoComplete="name"
             label="Nombre completo"
+            maxLength={50}
             name="nombre_completo"
             onChange={(event) => update('nombre_completo', event.target.value)}
             required
