@@ -1,4 +1,5 @@
 const request = require('supertest');
+const { ConnectionRefusedError } = require('sequelize');
 const app = require('../src/app');
 const { Paciente, AuditLog } = require('../src/config/database');
 const { registrarBajaGuard, limpiarBajaGuards } = require('../src/lib/bajaGuards');
@@ -163,6 +164,30 @@ describe('Módulo de pacientes', () => {
 
       expect(res.status).toBe(201);
     });
+
+    test('CP-INT-46 rechaza un nombre de más de 50 caracteres (CP2-17)', async () => {
+      const res = await crear(datosPaciente({ nombre_completo: 'A'.repeat(51) }));
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors.nombre_completo).toBe('El nombre completo no puede exceder 50 caracteres.');
+    });
+
+    test('CP-INT-48 un error de conexión al guardar responde 503 y no pierde lo escrito (CP2-29)', async () => {
+      const datos = datosPaciente({ correo: 'conexion@correo.com' });
+      const espia = jest
+        .spyOn(Paciente, 'create')
+        .mockRejectedValueOnce(new ConnectionRefusedError(new Error('sin red')));
+
+      const res = await crear(datos);
+
+      expect(res.status).toBe(503);
+      expect(res.body.message).toMatch(/conexión/);
+      expect(await Paciente.count()).toBe(0);
+
+      espia.mockRestore();
+      const reintento = await crear(datos);
+      expect(reintento.status).toBe(201);
+    });
   });
 
   describe('consulta', () => {
@@ -226,6 +251,23 @@ describe('Módulo de pacientes', () => {
       const invalido = await request(app).get('/api/pacientes/abc').set(bearer(token));
       expect(invalido.status).toBe(400);
     });
+
+    test('CP-INT-47 el perfil muestra todos los datos del paciente (CP2-25)', async () => {
+      const id = (await crear(datosPaciente({ correo: 'ana@correo.com' }))).body.data.id;
+
+      const perfil = await request(app).get(`/api/pacientes/${id}`).set(bearer(token));
+
+      expect(perfil.status).toBe(200);
+      expect(perfil.body.data).toMatchObject({
+        nombre_completo: 'María José Hernández Pérez',
+        fecha_nacimiento: '1990-04-27',
+        curp: datosPaciente().curp,
+        telefono: '9991234567',
+        correo: 'ana@correo.com',
+        sexo: 'H',
+        estado: 'activo',
+      });
+    });
   });
 
   describe('actualización', () => {
@@ -285,6 +327,19 @@ describe('Módulo de pacientes', () => {
 
       const res = await request(app).put(`/api/pacientes/${id}`).set(bearer(token)).send({ telefono: '9990001111' });
       expect(res.status).toBe(409);
+    });
+
+    test('CP-INT-47 rechaza un nombre de más de 50 caracteres en edición y no guarda (CP2-28)', async () => {
+      const res = await request(app)
+        .put(`/api/pacientes/${id}`)
+        .set(bearer(token))
+        .send({ nombre_completo: 'B'.repeat(51) });
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors.nombre_completo).toBe('El nombre completo no puede exceder 50 caracteres.');
+
+      const perfil = await request(app).get(`/api/pacientes/${id}`).set(bearer(token));
+      expect(perfil.body.data.nombre_completo).toBe('María José Hernández Pérez');
     });
   });
 

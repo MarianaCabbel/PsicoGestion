@@ -1,5 +1,6 @@
 const request = require('supertest');
 const sharp = require('sharp');
+const { ConnectionRefusedError } = require('sequelize');
 const app = require('../src/app');
 const { Terapeuta, TerapeutaFoto, TerapeutaHorario, AuditLog, User } = require('../src/config/database');
 const { registrarBajaGuard, limpiarBajaGuards } = require('../src/lib/bajaGuards');
@@ -67,11 +68,11 @@ describe('Módulo de terapeutas', () => {
     test('CP-INT-52 correo y cédula duplicados responden 409 por campo', async () => {
       await crear();
 
-      const correo = await crear(datosTerapeuta({ cedula_profesional: '87654321' }));
+      const correo = await crear(datosTerapeuta({ cedula_profesional: '87654321', telefono: '9991111111' }));
       expect(correo.status).toBe(409);
       expect(correo.body.errors.correo).toBe('Ya existe un terapeuta registrado con este correo.');
 
-      const cedula = await crear(datosTerapeuta({ correo: 'otro@correo.uady.mx' }));
+      const cedula = await crear(datosTerapeuta({ correo: 'otro@correo.uady.mx', telefono: '9992222222' }));
       expect(cedula.status).toBe(409);
       expect(cedula.body.errors.cedula_profesional).toBe(
         'Ya existe un terapeuta registrado con esta cédula profesional.'
@@ -81,17 +82,44 @@ describe('Módulo de terapeutas', () => {
     test('CP-INT-52 el correo se compara sin distinguir mayúsculas', async () => {
       await crear();
       const res = await crear(
-        datosTerapeuta({ correo: 'LUIS.CANCHE@CORREO.UADY.MX', cedula_profesional: '87654321' })
+        datosTerapeuta({
+          correo: 'LUIS.CANCHE@CORREO.UADY.MX',
+          cedula_profesional: '87654321',
+          telefono: '9991111111',
+        })
       );
       expect(res.status).toBe(409);
+    });
+
+    test('CP-INT-64 rechaza un nombre de más de 50 caracteres (CP2-02)', async () => {
+      const res = await crear(datosTerapeuta({ nombre_completo: 'A'.repeat(51) }));
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors.nombre_completo).toBe('El nombre completo no puede exceder 50 caracteres.');
+    });
+
+    test('CP-INT-64 rechaza una fecha de nacimiento futura (CP2-05)', async () => {
+      const res = await crear(datosTerapeuta({ fecha_nacimiento: fechaHace(-1) }));
+
+      expect(res.status).toBe(400);
+      expect(res.body.errors.fecha_nacimiento).toBe('La fecha de nacimiento no puede ser futura.');
+    });
+
+    test('CP-INT-64 el teléfono duplicado responde 409 por campo (CP2-03)', async () => {
+      await crear();
+
+      const res = await crear(datosTerapeuta({ correo: 'otro@correo.uady.mx', cedula_profesional: '87654321' }));
+
+      expect(res.status).toBe(409);
+      expect(res.body.errors.telefono).toBe('Ya existe un terapeuta registrado con este teléfono.');
     });
   });
 
   describe('consulta, actualización y baja', () => {
     test('CP-INT-53 lista con búsqueda y paginación', async () => {
-      await crear(datosTerapeuta({ nombre_completo: 'Ana Torres', correo: 'ana@correo.uady.mx', cedula_profesional: '1111111' }));
-      await crear(datosTerapeuta({ nombre_completo: 'Bruno Cab', correo: 'bruno@correo.uady.mx', cedula_profesional: '2222222' }));
-      await crear(datosTerapeuta({ nombre_completo: 'Carlos Dzul', correo: 'carlos@correo.uady.mx', cedula_profesional: '3333333' }));
+      await crear(datosTerapeuta({ nombre_completo: 'Ana Torres', correo: 'ana@correo.uady.mx', cedula_profesional: '1111111', telefono: '9991111111' }));
+      await crear(datosTerapeuta({ nombre_completo: 'Bruno Cab', correo: 'bruno@correo.uady.mx', cedula_profesional: '2222222', telefono: '9992222222' }));
+      await crear(datosTerapeuta({ nombre_completo: 'Carlos Dzul', correo: 'carlos@correo.uady.mx', cedula_profesional: '3333333', telefono: '9993333333' }));
 
       const pagina = await request(app).get('/api/terapeutas?limit=2').set(bearer(token));
       expect(pagina.body.data.total).toBe(3);
@@ -116,7 +144,7 @@ describe('Módulo de terapeutas', () => {
 
     test('CP-INT-55 actualiza datos y respeta la unicidad', async () => {
       const id = (await crear()).body.data.id;
-      await crear(datosTerapeuta({ correo: 'otro@correo.uady.mx', cedula_profesional: '7654321' }));
+      await crear(datosTerapeuta({ correo: 'otro@correo.uady.mx', cedula_profesional: '7654321', telefono: '9991111111' }));
 
       const ok = await request(app).put(`/api/terapeutas/${id}`).set(bearer(token)).send({ telefono: '9990000000' });
       expect(ok.status).toBe(200);
@@ -164,9 +192,91 @@ describe('Módulo de terapeutas', () => {
       const id = (await crear()).body.data.id;
       await request(app).delete(`/api/terapeutas/${id}`).set(bearer(token)).send({ confirmar: true });
 
-      const res = await crear(datosTerapeuta({ cedula_profesional: '9999999' }));
+      const res = await crear(datosTerapeuta({ cedula_profesional: '9999999', telefono: '9991111111' }));
       expect(res.status).toBe(409);
       expect(res.body.errors.correo).toMatch(/dado de baja/);
+    });
+
+    test('CP-INT-65 el perfil muestra todos los datos del terapeuta (CP2-10)', async () => {
+      const id = (await crear()).body.data.id;
+      await request(app)
+        .put(`/api/terapeutas/${id}/foto`)
+        .set(bearer(token))
+        .attach('foto', await crearImagen(), { filename: 'foto.png', contentType: 'image/png' });
+
+      const perfil = await request(app).get(`/api/terapeutas/${id}`).set(bearer(token));
+
+      expect(perfil.status).toBe(200);
+      expect(perfil.body.data).toMatchObject({
+        nombre_completo: 'Dr. Luis Alberto Canché Mex',
+        fecha_nacimiento: '1985-06-15',
+        cedula_profesional: '12345678',
+        telefono: '9997654321',
+        correo: 'luis.canche@correo.uady.mx',
+        tiene_foto: true,
+        estado: 'activo',
+      });
+      expect(perfil.body.data.edad).toBeGreaterThanOrEqual(41);
+      expect(perfil.body.data.horarios).toEqual([]);
+    });
+
+    test('CP-INT-65 en edición el teléfono duplicado se rechaza pero el propio se conserva (CP2-12)', async () => {
+      const id = (await crear()).body.data.id;
+      await crear(
+        datosTerapeuta({ correo: 'otro@correo.uady.mx', cedula_profesional: '7654321', telefono: '9991111111' })
+      );
+
+      const duplicado = await request(app)
+        .put(`/api/terapeutas/${id}`)
+        .set(bearer(token))
+        .send({ telefono: '9991111111' });
+      expect(duplicado.status).toBe(409);
+      expect(duplicado.body.errors.telefono).toBe('Ya existe un terapeuta registrado con este teléfono.');
+
+      const propio = await request(app)
+        .put(`/api/terapeutas/${id}`)
+        .set(bearer(token))
+        .send({ telefono: '9997654321' });
+      expect(propio.status).toBe(200);
+    });
+
+    test('CP-INT-65 rechaza nombre o fecha inválidos en edición y no guarda (CP2-13)', async () => {
+      const id = (await crear()).body.data.id;
+
+      const nombre = await request(app)
+        .put(`/api/terapeutas/${id}`)
+        .set(bearer(token))
+        .send({ nombre_completo: 'B'.repeat(51) });
+      expect(nombre.status).toBe(400);
+      expect(nombre.body.errors.nombre_completo).toBe('El nombre completo no puede exceder 50 caracteres.');
+
+      const fecha = await request(app)
+        .put(`/api/terapeutas/${id}`)
+        .set(bearer(token))
+        .send({ fecha_nacimiento: fechaHace(-1) });
+      expect(fecha.status).toBe(400);
+      expect(fecha.body.errors.fecha_nacimiento).toBe('La fecha de nacimiento no puede ser futura.');
+
+      const perfil = await request(app).get(`/api/terapeutas/${id}`).set(bearer(token));
+      expect(perfil.body.data.nombre_completo).toBe('Dr. Luis Alberto Canché Mex');
+      expect(perfil.body.data.fecha_nacimiento).toBe('1985-06-15');
+    });
+
+    test('CP-INT-66 un error de conexión al guardar responde 503 y no pierde lo escrito (CP2-15)', async () => {
+      const datos = datosTerapeuta({ correo: 'conexion@correo.uady.mx', cedula_profesional: '5555555' });
+      const espia = jest
+        .spyOn(Terapeuta, 'create')
+        .mockRejectedValueOnce(new ConnectionRefusedError(new Error('sin red')));
+
+      const res = await crear(datos);
+
+      expect(res.status).toBe(503);
+      expect(res.body.message).toMatch(/conexión/);
+      expect(await Terapeuta.count()).toBe(0);
+
+      espia.mockRestore();
+      const reintento = await crear(datos);
+      expect(reintento.status).toBe(201);
     });
   });
 

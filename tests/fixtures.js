@@ -98,7 +98,7 @@ async function crearTerapeutaConHorario(overrides = {}, horarios = null) {
   contador += 1;
   const terapeuta = await Terapeuta.create({
     nombre_completo: `Terapeuta Número ${contador}`,
-    telefono: '9997654321',
+    telefono: String(9990000000 + contador),
     correo: `terapeuta${contador}@correo.uady.mx`,
     fecha_nacimiento: '1985-06-15',
     cedula_profesional: String(1000000 + contador),

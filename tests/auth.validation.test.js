@@ -1,4 +1,10 @@
 const {
+  VERIFICATION_CODE_TTL_MS,
+  RESET_LINK_TTL_MS,
+  isInstitutionalEmail,
+  isValidPhone,
+  isVerificationCodeExpired,
+  generateResetToken,
   validatePassword,
   validateUniqueCredentials,
   generateVerificationCode,
@@ -40,9 +46,9 @@ describe('Validación de contraseña', () => {
 describe('Unicidad de correo y teléfono', () => {
   test('rechaza cuando el correo ya existe', () => {
     const result = validateUniqueCredentials({
-      correo_institucional: 'ana@psicogestion.com',
-      telefono: '987654321',
-      existingUsers: [{ correo_institucional: 'ana@psicogestion.com', telefono: '111111111' }],
+      correo_institucional: 'ana@correo.uady.mx',
+      telefono: '9876543210',
+      existingUsers: [{ correo_institucional: 'ana@correo.uady.mx', telefono: '1111111111' }],
     });
 
     expect(result.isValid).toBe(false);
@@ -51,9 +57,9 @@ describe('Unicidad de correo y teléfono', () => {
 
   test('rechaza cuando el teléfono ya existe', () => {
     const result = validateUniqueCredentials({
-      correo_institucional: 'nuevo@psicogestion.com',
-      telefono: '987654321',
-      existingUsers: [{ correo_institucional: 'otro@psicogestion.com', telefono: '987654321' }],
+      correo_institucional: 'nuevo@correo.uady.mx',
+      telefono: '9876543210',
+      existingUsers: [{ correo_institucional: 'otro@correo.uady.mx', telefono: '9876543210' }],
     });
 
     expect(result.isValid).toBe(false);
@@ -62,13 +68,24 @@ describe('Unicidad de correo y teléfono', () => {
 
   test('acepta valores únicos', () => {
     const result = validateUniqueCredentials({
-      correo_institucional: 'nuevo@psicogestion.com',
-      telefono: '987654321',
-      existingUsers: [{ correo_institucional: 'otro@psicogestion.com', telefono: '123456789' }],
+      correo_institucional: 'nuevo@correo.uady.mx',
+      telefono: '9876543210',
+      existingUsers: [{ correo_institucional: 'otro@correo.uady.mx', telefono: '1234567890' }],
     });
 
     expect(result.isValid).toBe(true);
     expect(result.errors).toEqual([]);
+  });
+
+  test('normaliza mayúsculas y espacios antes de comparar', () => {
+    const result = validateUniqueCredentials({
+      correo_institucional: '  ANA@CORREO.UADY.MX ',
+      telefono: '987-654-3210',
+      existingUsers: [{ correo_institucional: 'ana@correo.uady.mx', telefono: '9876543210' }],
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toHaveLength(2);
   });
 });
 
@@ -84,5 +101,62 @@ describe('Generación y verificación de código', () => {
 
   test('rechaza un código incorrecto', () => {
     expect(verifyVerificationCode('123456', '654321')).toBe(false);
+  });
+});
+
+describe('Validación de correo institucional y teléfono', () => {
+  test('acepta cualquier subdominio de uady.mx', () => {
+    expect(isInstitutionalEmail('ana@uady.mx')).toBe(true);
+    expect(isInstitutionalEmail('ana@correo.uady.mx')).toBe(true);
+    expect(isInstitutionalEmail('  ANA@CORREO.UADY.MX  ')).toBe(true);
+  });
+
+  test('rechaza dominios ajenos y correos malformados', () => {
+    expect(isInstitutionalEmail('ana@gmail.com')).toBe(false);
+    expect(isInstitutionalEmail('ana@psicogestion.com')).toBe(false);
+    expect(isInstitutionalEmail('ana@xuady.mx')).toBe(false);
+    expect(isInstitutionalEmail('no-es-correo')).toBe(false);
+    expect(isInstitutionalEmail('')).toBe(false);
+    expect(isInstitutionalEmail(undefined)).toBe(false);
+  });
+
+  test('acepta exactamente 10 dígitos y normaliza la puntuación', () => {
+    expect(isValidPhone('9991234567')).toBe(true);
+    expect(isValidPhone('999-123-4567')).toBe(true);
+    expect(isValidPhone('(999) 123 4567')).toBe(true);
+    expect(isValidPhone('999123456')).toBe(false);
+    expect(isValidPhone('99912345678')).toBe(false);
+    expect(isValidPhone('')).toBe(false);
+    expect(isValidPhone('abcdefghij')).toBe(false);
+    expect(isValidPhone(undefined)).toBe(false);
+  });
+});
+
+describe('Caducidad de códigos y enlaces', () => {
+  test('los periodos de vigencia son de 10 minutos', () => {
+    expect(VERIFICATION_CODE_TTL_MS).toBe(10 * 60 * 1000);
+    expect(RESET_LINK_TTL_MS).toBe(10 * 60 * 1000);
+  });
+
+  test('detecta códigos y enlaces ya vencidos', () => {
+    expect(isVerificationCodeExpired(new Date(Date.now() - 1000))).toBe(true);
+    expect(isVerificationCodeExpired(new Date(Date.now() - 1))).toBe(true);
+  });
+
+  test('acepta los que aún están vigentes', () => {
+    expect(isVerificationCodeExpired(new Date(Date.now() + 60000))).toBe(false);
+    expect(isVerificationCodeExpired(null)).toBe(false);
+    expect(isVerificationCodeExpired(undefined)).toBe(false);
+  });
+});
+
+describe('Generación de token de restablecimiento', () => {
+  test('genera un token hexadecimal de 64 caracteres', () => {
+    const token = generateResetToken();
+    expect(token).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  test('cada token es distinto', () => {
+    expect(generateResetToken()).not.toBe(generateResetToken());
   });
 });

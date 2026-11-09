@@ -92,7 +92,7 @@ describe('Migraciones (Umzug)', () => {
     const primera = await migrator.up();
     const segunda = await migrator.up();
 
-    expect(primera).toHaveLength(9);
+    expect(primera).toHaveLength(10);
     expect(segunda).toHaveLength(0);
 
     await base.close();
