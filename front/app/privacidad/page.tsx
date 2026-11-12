@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { PrivacyBackLink } from '@/components/app/privacy-back-link';
 import { PrivacyFooter } from '@/components/app/privacy-footer';
 import { PRIVACY_NOTICE_VERSION } from '@/lib/privacy';
 
@@ -77,9 +77,7 @@ export default function PrivacyNoticePage() {
           Este aviso es la versión publicada en PsicoGestión. Para orientación sobre el ejercicio de
           derechos, contacta a la administración del SEAP en los canales institucionales.
         </p>
-        <Link className="ui-button ui-button--secondary ui-button--md" href="/login">
-          Volver al acceso
-        </Link>
+        <PrivacyBackLink />
       </article>
       <PrivacyFooter />
     </main>

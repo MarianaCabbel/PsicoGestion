@@ -12,6 +12,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'PsicoGestión',
   description: 'Plataforma de gestión clínica de PsicoGestión',
+  icons: {
+    icon: '/logo_light-mode.png',
+    apple: '/logo_light-mode.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

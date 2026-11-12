@@ -5,14 +5,13 @@ import { toast } from 'sonner';
 import { AppFrame } from '@/components/app/app-frame';
 import { TherapistForm, type TherapistRecord } from '@/components/clinical/therapist-form';
 import { useSession } from '@/components/providers/session-provider';
+import { ActionMenu, type ActionMenuItem } from '@/components/ui/action-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DataTable, type DataColumn } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
-import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
 import { api, apiBlob, ApiError } from '@/lib/api';
 import {
   affectedAppointmentFolios,
@@ -284,6 +283,82 @@ export default function TerapeutasPage() {
     }
   }
 
+  const columns: DataColumn<TherapistRecord>[] = [
+    {
+      key: 'terapeuta',
+      header: 'Terapeuta',
+      render: (therapist) => (
+        <span className="table-identity">
+          <span className="table-identity-avatar">
+            <TherapistPhoto therapist={therapist} />
+          </span>
+          <span>
+            <strong>{therapist.nombre_completo}</strong>
+            <small>ID #{therapist.id}</small>
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: 'cedula',
+      header: 'Cédula',
+      render: (therapist) => (
+        <span className="clinical-mono">{therapist.cedula_profesional}</span>
+      ),
+    },
+    {
+      key: 'contacto',
+      header: 'Contacto',
+      render: (therapist) => (
+        <span className="table-contact">
+          {therapist.telefono}
+          <small>{therapist.correo}</small>
+        </span>
+      ),
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      render: (therapist) => (
+        <Badge variant={therapist.estado === 'activo' ? 'success' : 'warning'}>
+          {therapist.estado === 'activo' ? 'Activo' : 'Baja'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Acciones',
+      render: (therapist) => {
+        const items: ActionMenuItem[] = [];
+        if (therapist.estado === 'activo') {
+          items.push(
+            {
+              label: 'Editar perfil y horario',
+              onSelect: () => void openEditForm(therapist),
+              disabled: saving,
+            },
+            {
+              label: 'Dar de baja',
+              onSelect: () => setPendingAction({ therapist, action: 'baja' }),
+              variant: 'danger',
+              disabled: saving,
+            },
+          );
+        } else if (user?.rol === 'administrador') {
+          items.push({
+            label: 'Reactivar',
+            onSelect: () => setPendingAction({ therapist, action: 'reactivar' }),
+            disabled: saving,
+          });
+        }
+        if (items.length === 0) {
+          return <span className="clinical-muted">Solo administración puede reactivar</span>;
+        }
+        return <ActionMenu items={items} label={`Acciones para ${therapist.nombre_completo}`} />;
+      },
+    },
+  ];
+
   return (
     <AppFrame>
       <div className="clinical-page">
@@ -342,90 +417,18 @@ export default function TerapeutasPage() {
           </p>
         )}
 
-        {loading ? (
-          <div aria-label="Cargando terapeutas" className="therapist-grid" role="status">
-            {Array.from({ length: 6 }, (_, index) => (
-              <Card className="therapist-card therapist-card-skeleton" key={index}>
-                <Skeleton className="therapist-avatar-skeleton" />
-                <div>
-                  <Skeleton className="therapist-line" />
-                  <Skeleton className="therapist-line therapist-line-short" />
-                </div>
-              </Card>
-            ))}
-          </div>
-        ) : result.items.length === 0 ? (
-          <EmptyState
-            description={
-              query
-                ? 'Prueba con otro nombre, correo o número de cédula.'
-                : 'Registra el primer perfil del equipo terapéutico.'
-            }
-            title={query ? 'No encontramos coincidencias' : 'Aún no hay terapeutas'}
-          />
-        ) : (
-          <div aria-label="Directorio de terapeutas" className="therapist-grid">
-            {result.items.map((therapist) => (
-              <Card className="therapist-card" key={therapist.id}>
-                <CardContent className="therapist-card-content">
-                  <div className="therapist-card-heading">
-                    <TherapistPhoto therapist={therapist} />
-                    <div className="therapist-card-title">
-                      <h3>{therapist.nombre_completo}</h3>
-                      <Badge variant={therapist.estado === 'activo' ? 'success' : 'warning'}>
-                        {therapist.estado === 'activo' ? 'Activo' : 'Baja'}
-                      </Badge>
-                    </div>
-                  </div>
-                  <dl className="therapist-details">
-                    <div>
-                      <dt>Cédula</dt>
-                      <dd>{therapist.cedula_profesional}</dd>
-                    </div>
-                    <div>
-                      <dt>Contacto</dt>
-                      <dd>{therapist.telefono}</dd>
-                    </div>
-                    <div>
-                      <dt>Correo</dt>
-                      <dd className="therapist-email">{therapist.correo}</dd>
-                    </div>
-                  </dl>
-                  <div className="therapist-card-actions">
-                    {therapist.estado === 'activo' ? (
-                      <>
-                        <Button
-                          disabled={saving}
-                          onClick={() => void openEditForm(therapist)}
-                          variant="secondary"
-                        >
-                          Editar perfil y horario
-                        </Button>
-                        <Button
-                          disabled={saving}
-                          onClick={() => setPendingAction({ therapist, action: 'baja' })}
-                          variant="danger"
-                        >
-                          Dar de baja
-                        </Button>
-                      </>
-                    ) : user?.rol === 'administrador' ? (
-                      <Button
-                        disabled={saving}
-                        onClick={() => setPendingAction({ therapist, action: 'reactivar' })}
-                        variant="secondary"
-                      >
-                        Reactivar
-                      </Button>
-                    ) : (
-                      <span className="clinical-muted">Solo administración puede reactivar</span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        <DataTable
+          columns={columns}
+          emptyDescription={
+            query
+              ? 'Prueba con otro nombre, correo o número de cédula.'
+              : 'Registra el primer perfil del equipo terapéutico.'
+          }
+          emptyTitle={query ? 'No encontramos coincidencias' : 'Aún no hay terapeutas'}
+          getRowId={(therapist) => therapist.id}
+          loading={loading}
+          rows={result.items}
+        />
 
         <nav aria-label="Paginación de terapeutas" className="clinical-pagination">
           <Button
@@ -455,6 +458,7 @@ export default function TerapeutasPage() {
           if (!open) setEditing(null);
         }}
         open={formOpen}
+        size="lg"
         title={editing ? 'Editar terapeuta' : 'Nuevo terapeuta'}
       >
         <TherapistForm

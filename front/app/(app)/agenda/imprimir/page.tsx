@@ -1,11 +1,13 @@
 'use client';
 
+import Image from 'next/image';
 import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { AgendaView } from '@/components/agenda/agenda-toolbar';
 import { Button } from '@/components/ui/button';
+import { useTheme } from '@/components/providers/theme-provider';
 
 type PrintAppointment = {
   folio: string;
@@ -27,6 +29,7 @@ type PrintAgenda = {
 };
 
 function AgendaPrintContent() {
+  const { theme } = useTheme();
   const params = useSearchParams();
   const view = (params.get('vista') ?? 'dia') as AgendaView;
   const date = params.get('fecha') ?? new Date().toISOString().slice(0, 10);
@@ -77,9 +80,14 @@ function AgendaPrintContent() {
       )}
       <article className="agenda-print-sheet">
         <header className="agenda-print-header">
-          <div className="agenda-print-logo" aria-hidden="true">
-            PG
-          </div>
+          <Image
+            alt=""
+            aria-hidden="true"
+            className="agenda-print-logo"
+            height={44}
+            src={theme === 'light' ? '/logo_light-mode.png' : '/logo_dark-mode.png'}
+            width={44}
+          />
           <div>
             <p className="eyebrow">PsicoGestión · Atención clínica</p>
             <h1>Agenda de citas</h1>

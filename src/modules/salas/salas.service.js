@@ -74,6 +74,43 @@ async function crear({ nombre }, contexto) {
   }
 }
 
+async function actualizar(id, { nombre }, contexto) {
+  const nombre_norm = normalizarNombre(nombre);
+
+  try {
+    return await conTransaccion(async (transaction) => {
+      const sala = await buscarPorId(id, { transaction });
+
+      if (sala.baja_at) {
+        throw new AppError('La sala está dada de baja. Debe reactivarse antes de editarla.', 409);
+      }
+
+      // El nombre es único entre todas las salas, incluidas las dadas de baja.
+      const existente = await Sala.findOne({
+        where: { nombre_norm, id: { [Op.ne]: sala.id } },
+        paranoid: false,
+        transaction,
+      });
+
+      if (existente) throw errorNombreDuplicado(existente);
+
+      await sala.update({ nombre, nombre_norm }, { transaction });
+
+      await registrarAuditoria(
+        { ...contexto, accion: 'actualizar', entidad: 'sala', entidadId: sala.id },
+        { transaction }
+      );
+
+      return serializar(sala);
+    });
+  } catch (error) {
+    if (error instanceof UniqueConstraintError) {
+      throw errorNombreDuplicado({});
+    }
+    throw error;
+  }
+}
+
 /** Para cada sala: citas pendientes de hoy y si está ocupada en este momento. */
 async function estadoDeHoy(salaIds) {
   if (salaIds.length === 0) return new Map();
@@ -226,12 +263,17 @@ async function disponibilidadDelDia(fecha) {
         ocupados,
         horas_ocupadas: ocupados.map(slotAHora),
         libres: NUM_SLOTS - ocupados.length,
+        // Para el día basta con que haya una cita: la sala ya no está libre.
+        estado_dia: ocupados.length > 0 ? 'reservada' : 'libre',
       };
     }),
   };
 }
 
-/** Por día: libre (0 bloques ocupados), parcial o reservada (todos los bloques ocupados). */
+/**
+ * Por día, el estado de la sala es binario: `libre` sin citas y `reservada` con
+ * al menos una. `nivel` conserva la densidad visual (libre/parcial/completa).
+ */
 async function disponibilidadDeRango(id, { desde, hasta }) {
   const sala = await buscarPorId(id);
 
@@ -255,7 +297,8 @@ async function disponibilidadDeRango(id, { desde, hasta }) {
         fecha,
         dia_atencion: DIAS_ATENCION.includes(diaSemanaISO(fecha)),
         slots_ocupados: ocupados,
-        estado: ocupados === 0 ? 'libre' : ocupados >= NUM_SLOTS ? 'reservada' : 'parcial',
+        estado: ocupados === 0 ? 'libre' : 'reservada',
+        nivel: ocupados === 0 ? 'libre' : ocupados >= NUM_SLOTS ? 'completa' : 'parcial',
       };
     }),
   };
@@ -264,6 +307,7 @@ async function disponibilidadDeRango(id, { desde, hasta }) {
 module.exports = {
   normalizarNombre,
   crear,
+  actualizar,
   listar,
   obtener,
   darDeBaja,

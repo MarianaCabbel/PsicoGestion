@@ -53,7 +53,7 @@ export function DataTable<T>({
           {rows.map((row) => (
             <tr key={getRowId(row)}>
               {columns.map((column) => (
-                <td key={column.key}>{column.render(row)}</td>
+                <td data-label={column.header} key={column.key}>{column.render(row)}</td>
               ))}
             </tr>
           ))}

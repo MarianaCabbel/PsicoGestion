@@ -48,11 +48,16 @@ El backend aplica las migraciones automáticamente al iniciar en desarrollo. En 
 npm test                    # pruebas del backend con SQLite en memoria
 npm run test:backend        # equivalente explícito
 npm run test:frontend       # pruebas del cliente HTTP del frontend
+npm run test:e2e:install    # instala Chromium para Playwright (una vez)
+npm run test:e2e            # humo en navegador y flujos autenticados opcionales
+npm run test:e2e:perf       # medición de carga de /login
 npm run build:client        # compilación de producción de Next.js
 npm run lint
 npm run format
 npm run typecheck           # TypeScript del frontend
 ```
+
+Las pruebas E2E levantan backend y frontend automáticamente. Las públicas corren sin configuración; para los flujos autenticados define `E2E_EMAIL` y `E2E_PASSWORD` con una cuenta verificada. El presupuesto de carga de `/login` se ajusta con `E2E_PERF_BUDGET_MS` (5000 ms por defecto).
 
 Para ejecutar la misma suite backend contra PostgreSQL, crea una base de datos de pruebas y configura `TEST_DATABASE_URL` antes de ejecutar:
 

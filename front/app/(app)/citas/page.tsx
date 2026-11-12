@@ -1,10 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { AppointmentWizard } from '@/components/appointments/appointment-wizard';
 import { AppFrame } from '@/components/app/app-frame';
+import { ActionMenu, type ActionMenuItem } from '@/components/ui/action-menu';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -13,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
+import { anunciarCambioDeCitas } from '@/lib/citas-events';
 
 type Lookup = { id: number; nombre: string; nombre_completo?: string };
 type Appointment = {
@@ -35,6 +38,16 @@ type CancelTarget = { appointment: Appointment; byFolio: boolean };
 const PAGE_SIZE = 50;
 
 export default function CitasPage() {
+  return (
+    <Suspense fallback={null}>
+      <CitasPageContent />
+    </Suspense>
+  );
+}
+
+function CitasPageContent() {
+  const searchParams = useSearchParams();
+  const folioParam = (searchParams.get('folio') ?? '').trim().toUpperCase();
   const [tab, setTab] = useState<'pendiente' | 'cancelada' | 'vencida' | 'todas'>('pendiente');
   const [rooms, setRooms] = useState<Lookup[]>([]);
   const [therapists, setTherapists] = useState<Lookup[]>([]);
@@ -42,8 +55,8 @@ export default function CitasPage() {
   const [therapistId, setTherapistId] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [untilDate, setUntilDate] = useState('');
-  const [folioQuery, setFolioQuery] = useState('');
-  const [folioMode, setFolioMode] = useState(false);
+  const [folioQuery, setFolioQuery] = useState(() => folioParam);
+  const [folioMode, setFolioMode] = useState(() => Boolean(folioParam));
   const [result, setResult] = useState<PageResult>({
     items: [],
     page: 1,
@@ -112,9 +125,8 @@ export default function CitasPage() {
     return () => controller.abort();
   }, [folioMode, loadAppointments]);
 
-  async function searchFolio(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const folio = folioQuery.trim().toUpperCase();
+  /** Carga una cita por folio; comparte la lógica con la búsqueda manual. */
+  const buscarPorFolio = useCallback(async (folio: string, signal?: AbortSignal) => {
     if (!folio) {
       setFolioMode(false);
       setDetail(null);
@@ -123,16 +135,31 @@ export default function CitasPage() {
     setLoading(true);
     setError('');
     try {
-      const response = await api<Appointment>(`/api/citas/folio/${encodeURIComponent(folio)}`);
+      const response = await api<Appointment>(`/api/citas/folio/${encodeURIComponent(folio)}`, {
+        signal,
+      });
       setDetail(response.data);
       setResult({ items: [response.data], page: 1, total: 1, total_paginas: 1 });
       setFolioMode(true);
     } catch (cause) {
+      if (cause instanceof Error && cause.name === 'AbortError') return;
       setDetail(null);
       setError(cause instanceof Error ? cause.message : 'No se encontró el folio.');
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
+  }, []);
+
+  // Enlace directo desde la agenda: /citas?folio=...
+  useEffect(() => {
+    if (!folioParam) return;
+    setFolioQuery(folioParam);
+    void buscarPorFolio(folioParam);
+  }, [buscarPorFolio, folioParam]);
+
+  async function searchFolio(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await buscarPorFolio(folioQuery.trim().toUpperCase());
   }
 
   async function openDetails(appointment: Appointment) {
@@ -156,6 +183,7 @@ export default function CitasPage() {
         : `/api/citas/${cancelTarget.appointment.id}/cancelar`;
       await api(path, { method: 'POST', body: { confirmar: true } });
       toast.success(`Cita ${cancelTarget.appointment.folio} cancelada.`);
+      anunciarCambioDeCitas();
       setCancelTarget(null);
       if (detail?.id === cancelTarget.appointment.id) setDetail(null);
       await loadAppointments();
@@ -351,15 +379,15 @@ export default function CitasPage() {
                     <th>Fecha y hora</th>
                     <th>Paciente</th>
                     <th>Terapeuta</th>
-                    <th>Sala</th>
+                    <th className="appointment-col-sala">Sala</th>
                     <th>Estado</th>
-                    <th>Acciones</th>
+                    <th className="appointment-col-actions">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {result.items.map((appointment) => (
                     <tr key={appointment.id}>
-                      <td>
+                      <td data-label="Folio">
                         <button
                           className="folio-copy"
                           onClick={() => {
@@ -374,14 +402,14 @@ export default function CitasPage() {
                           {appointment.folio}
                         </button>
                       </td>
-                      <td>
+                      <td data-label="Fecha y hora">
                         {appointment.fecha.slice(0, 10)} · {appointment.hora_inicio}–
                         {appointment.hora_fin}
                       </td>
-                      <td>{appointment.paciente.nombre_completo}</td>
-                      <td>{appointment.terapeuta.nombre_completo}</td>
-                      <td>{appointment.sala.nombre}</td>
-                      <td>
+                      <td data-label="Paciente">{appointment.paciente.nombre_completo}</td>
+                      <td data-label="Terapeuta">{appointment.terapeuta.nombre_completo}</td>
+                      <td className="appointment-col-sala" data-label="Sala">{appointment.sala.nombre}</td>
+                      <td data-label="Estado">
                         <Badge
                           variant={
                             appointment.estado === 'pendiente'
@@ -394,32 +422,29 @@ export default function CitasPage() {
                           {appointment.estado}
                         </Badge>
                       </td>
-                      <td className="appointment-row-actions">
-                        <Button
-                          onClick={() => void openDetails(appointment)}
-                          size="sm"
-                          variant="secondary"
-                        >
-                          Detalle
-                        </Button>
-                        {appointment.estado === 'pendiente' && (
-                          <>
-                            <Button
-                              onClick={() => editAppointment(appointment)}
-                              size="sm"
-                              variant="secondary"
-                            >
-                              Modificar
-                            </Button>
-                            <Button
-                              onClick={() => setCancelTarget({ appointment, byFolio: false })}
-                              size="sm"
-                              variant="danger"
-                            >
-                              Cancelar
-                            </Button>
-                          </>
-                        )}
+                      <td className="appointment-row-actions" data-label="Acciones">
+                        <ActionMenu
+                          items={[
+                            {
+                              label: 'Detalle',
+                              onSelect: () => void openDetails(appointment),
+                            },
+                            ...(appointment.estado === 'pendiente'
+                              ? [
+                                  {
+                                    label: 'Modificar',
+                                    onSelect: () => editAppointment(appointment),
+                                  },
+                                  {
+                                    label: 'Cancelar',
+                                    onSelect: () => setCancelTarget({ appointment, byFolio: false }),
+                                    variant: 'danger' as const,
+                                  },
+                                ]
+                              : []),
+                          ]}
+                          label={`Acciones para ${appointment.folio}`}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -529,22 +554,26 @@ export default function CitasPage() {
           if (!open) setEditing(null);
         }}
         onSaved={() => {
+          anunciarCambioDeCitas();
           void loadAppointments();
           setDetail(null);
         }}
         open={wizardOpen}
       />
-      <ConfirmDialog
-        busy={busy}
-        confirmLabel="Cancelar cita"
-        description={`Se cancelará la cita ${cancelTarget?.appointment.folio ?? ''}. Esta acción libera el horario reservado.`}
-        onConfirm={() => void cancelAppointment()}
-        onOpenChange={(open) => {
-          if (!open) setCancelTarget(null);
-        }}
-        open={cancelTarget !== null}
-        title="Confirmar cancelación"
-      />
+      {cancelTarget && (
+        <ConfirmDialog
+          busy={busy}
+          confirmLabel="Cancelar cita"
+          description={`Se cancelará la cita ${cancelTarget.appointment.folio}. Esta acción libera el horario reservado.`}
+          onConfirm={() => void cancelAppointment()}
+          onOpenChange={(open) => {
+            if (!open) setCancelTarget(null);
+          }}
+          open
+          title="Confirmar cancelación"
+        />
+      )}
     </AppFrame>
   );
 }
+

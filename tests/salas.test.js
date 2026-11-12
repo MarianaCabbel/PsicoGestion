@@ -1,4 +1,5 @@
 const request = require('supertest');
+const { ConnectionRefusedError } = require('sequelize');
 const app = require('../src/app');
 const { Sala, User, AuditLog } = require('../src/config/database');
 const reloj = require('../src/lib/reloj');
@@ -208,6 +209,91 @@ describe('Módulo de salas', () => {
     });
   });
 
+  describe('edición', () => {
+    const editar = (id, nombre, t = token) =>
+      request(app).put(`/api/salas/${id}`).set(bearer(t)).send({ nombre });
+
+    test('CP-INT-102 actualiza el nombre y registra auditoría', async () => {
+      const id = (await crear('Sala A')).body.data.id;
+
+      const res = await editar(id, 'Sala B');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toMatchObject({ id, nombre: 'Sala B', estado: 'activa' });
+      expect((await Sala.findByPk(id)).nombre_norm).toBe('sala b');
+
+      const registros = await AuditLog.findAll({ where: { entidad: 'sala', accion: 'actualizar' } });
+      expect(registros).toHaveLength(1);
+      expect(registros[0].entidad_id).toBe(id);
+    });
+
+    test('CP-INT-102 rechaza más de 10 caracteres o vacío sin tocar el registro', async () => {
+      const id = (await crear('Sala A')).body.data.id;
+
+      const largo = await editar(id, '12345678901');
+      expect(largo.status).toBe(400);
+      expect(largo.body.errors.nombre).toBe('El nombre de la sala no puede exceder 10 caracteres.');
+      expect((await editar(id, '   ')).status).toBe(400);
+      expect((await Sala.findByPk(id)).nombre).toBe('Sala A');
+    });
+
+    test('CP-INT-102 rechaza un nombre usado por otra sala, sin distinguir formato', async () => {
+      await crear('Sala A');
+      const id = (await crear('Sala B')).body.data.id;
+
+      for (const variante of ['SALA A', 'sála  a']) {
+        const res = await editar(id, variante);
+        expect(res.status).toBe(409);
+        expect(res.body.errors.nombre).toBe('Ya existe una sala con ese nombre.');
+      }
+      expect((await Sala.findByPk(id)).nombre).toBe('Sala B');
+    });
+
+    test('CP-INT-102 permite conservar el propio nombre con otra capitalización', async () => {
+      const id = (await crear('Sala A')).body.data.id;
+
+      const res = await editar(id, 'sala a');
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.nombre).toBe('sala a');
+      expect(await Sala.count()).toBe(1);
+    });
+
+    test('CP-INT-102 no edita una sala dada de baja ni una inexistente', async () => {
+      const id = (await crear('Sala A')).body.data.id;
+      await request(app).delete(`/api/salas/${id}`).set(bearer(token)).send({ confirmar: true });
+
+      const baja = await editar(id, 'Sala B');
+      expect(baja.status).toBe(409);
+      expect(baja.body.message).toMatch(/dada de baja/);
+      expect((await editar(9999, 'Sala B')).status).toBe(404);
+    });
+
+    test('CP-INT-103 un error de conexión responde 503, conserva el nombre y permite reintentar', async () => {
+      const id = (await crear('Sala A')).body.data.id;
+      const espia = jest
+        .spyOn(Sala, 'findOne')
+        .mockRejectedValueOnce(new ConnectionRefusedError(new Error('sin red')));
+
+      const res = await editar(id, 'Sala B');
+      expect(res.status).toBe(503);
+      expect(res.body.message).toMatch(/conexión/);
+      expect((await Sala.findByPk(id)).nombre).toBe('Sala A');
+
+      espia.mockRestore();
+      const reintento = await editar(id, 'Sala B');
+      expect(reintento.status).toBe(200);
+    });
+
+    test('CP-INT-104 secretaria y administrador pueden editar', async () => {
+      const id = (await crear('Sala A')).body.data.id;
+      expect((await editar(id, 'Sala B')).status).toBe(200);
+
+      await User.update({ rol: 'administrador' }, { where: {} });
+      expect((await editar(id, 'Sala C')).status).toBe(200);
+    });
+  });
+
   describe('disponibilidad', () => {
     test('CP-INT-99 muestra los bloques ocupados de cada sala en un día', async () => {
       const salaA = await crearSala('Sala A');
@@ -227,8 +313,14 @@ describe('Módulo de salas', () => {
       expect(res.body.data).toMatchObject({ fecha: '2026-10-20', dia_atencion: true, num_slots: 24 });
 
       const [a, b] = res.body.data.salas;
-      expect(a).toMatchObject({ nombre: 'Sala A', ocupados: [4, 5], horas_ocupadas: ['09:00', '09:30'], libres: 22 });
-      expect(b).toMatchObject({ nombre: 'Sala B', ocupados: [], libres: 24 });
+      expect(a).toMatchObject({
+        nombre: 'Sala A',
+        ocupados: [4, 5],
+        horas_ocupadas: ['09:00', '09:30'],
+        libres: 22,
+        estado_dia: 'reservada',
+      });
+      expect(b).toMatchObject({ nombre: 'Sala B', ocupados: [], libres: 24, estado_dia: 'libre' });
     });
 
     test('CP-INT-99 no cuenta las citas canceladas y marca los días sin atención', async () => {
@@ -253,12 +345,12 @@ describe('Módulo de salas', () => {
       expect((await request(app).get('/api/salas/disponibilidad?fecha=2026-02-30').set(bearer(token))).status).toBe(400);
     });
 
-    test('CP-INT-100 clasifica cada día del rango como libre, parcial o reservada', async () => {
+    test('CP-INT-100 clasifica cada día como libre o reservada y conserva el nivel de ocupación', async () => {
       const sala = await crearSala('Sala A');
       const terapeuta = await crearTerapeutaConHorario();
       const paciente = await crearPaciente();
 
-      // Martes 20: una cita (parcial). Miércoles 21: seis citas de 2 h cubren los 24 bloques (reservada).
+      // Martes 20: una cita (reservada, nivel parcial). Miércoles 21: seis citas de 2 h cubren los 24 bloques.
       await insertarCita({ paciente, terapeuta, sala, fecha: '2026-10-20', hora_inicio: '09:00' });
       for (const hora of ['07:00', '09:00', '11:00', '13:00', '15:00', '17:00']) {
         await insertarCita({ paciente, terapeuta, sala, fecha: '2026-10-21', hora_inicio: hora, duracion_slots: 4 });
@@ -269,11 +361,11 @@ describe('Módulo de salas', () => {
         .set(bearer(token));
 
       expect(res.status).toBe(200);
-      expect(res.body.data.dias.map((d) => [d.fecha, d.estado, d.slots_ocupados])).toEqual([
-        ['2026-10-19', 'libre', 0],
-        ['2026-10-20', 'parcial', 2],
-        ['2026-10-21', 'reservada', 24],
-        ['2026-10-22', 'libre', 0],
+      expect(res.body.data.dias.map((d) => [d.fecha, d.estado, d.nivel, d.slots_ocupados])).toEqual([
+        ['2026-10-19', 'libre', 'libre', 0],
+        ['2026-10-20', 'reservada', 'parcial', 2],
+        ['2026-10-21', 'reservada', 'completa', 24],
+        ['2026-10-22', 'libre', 'libre', 0],
       ]);
     });
 
@@ -302,6 +394,98 @@ describe('Módulo de salas', () => {
         .get('/api/salas/9999/disponibilidad?desde=2026-10-01&hasta=2026-10-02')
         .set(bearer(token));
       expect(inexistente.status).toBe(404);
+    });
+
+    const agendar = (cuerpo) => request(app).post('/api/citas').set(bearer(token)).send(cuerpo);
+
+    test('CP-INT-105 agendar una cita marca la sala como reservada ese día (CP3-52)', async () => {
+      const sala = await crearSala('Sala A');
+      const terapeuta = await crearTerapeutaConHorario();
+      const paciente = await crearPaciente();
+
+      const cita = await agendar({
+        paciente_id: paciente.id,
+        terapeuta_id: terapeuta.id,
+        sala_id: sala.id,
+        fecha: '2026-10-19',
+        hora_inicio: '09:00',
+        duracion_slots: 2,
+      });
+      expect(cita.status).toBe(201);
+
+      const dia = await request(app)
+        .get('/api/salas/disponibilidad?fecha=2026-10-19')
+        .set(bearer(token));
+      expect(dia.body.data.salas[0]).toMatchObject({ nombre: 'Sala A', estado_dia: 'reservada' });
+
+      const rango = await request(app)
+        .get(`/api/salas/${sala.id}/disponibilidad?desde=2026-10-19&hasta=2026-10-19`)
+        .set(bearer(token));
+      expect(rango.body.data.dias[0]).toMatchObject({
+        estado: 'reservada',
+        nivel: 'parcial',
+        slots_ocupados: 2,
+      });
+    });
+
+    test('CP-INT-106 cancelar libera la sala y permite reagendar (CP3-51)', async () => {
+      const sala = await crearSala('Sala A');
+      const terapeuta = await crearTerapeutaConHorario();
+      const paciente = await crearPaciente();
+      const cuerpo = {
+        paciente_id: paciente.id,
+        terapeuta_id: terapeuta.id,
+        sala_id: sala.id,
+        fecha: '2026-10-19',
+        hora_inicio: '09:00',
+        duracion_slots: 2,
+      };
+
+      const cita = await agendar(cuerpo);
+      expect(cita.status).toBe(201);
+
+      const cancelada = await request(app)
+        .post(`/api/citas/${cita.body.data.id}/cancelar`)
+        .set(bearer(token))
+        .send({ confirmar: true });
+      expect(cancelada.status).toBe(200);
+
+      const dia = await request(app)
+        .get('/api/salas/disponibilidad?fecha=2026-10-19')
+        .set(bearer(token));
+      expect(dia.body.data.salas[0].estado_dia).toBe('libre');
+
+      expect((await agendar(cuerpo)).status).toBe(201);
+    });
+
+    test('CP-INT-107 cambiar la cita de sala libera la anterior y reserva la nueva (CP3-53)', async () => {
+      const salaA = await crearSala('Sala A');
+      const salaB = await crearSala('Sala B');
+      const terapeuta = await crearTerapeutaConHorario();
+      const paciente = await crearPaciente();
+
+      const cita = await agendar({
+        paciente_id: paciente.id,
+        terapeuta_id: terapeuta.id,
+        sala_id: salaA.id,
+        fecha: '2026-10-19',
+        hora_inicio: '09:00',
+        duracion_slots: 2,
+      });
+      expect(cita.status).toBe(201);
+
+      const cambio = await request(app)
+        .put(`/api/citas/${cita.body.data.id}`)
+        .set(bearer(token))
+        .send({ sala_id: salaB.id });
+      expect(cambio.status).toBe(200);
+
+      const dia = await request(app)
+        .get('/api/salas/disponibilidad?fecha=2026-10-19')
+        .set(bearer(token));
+      const porNombre = Object.fromEntries(dia.body.data.salas.map((s) => [s.nombre, s]));
+      expect(porNombre['Sala A'].estado_dia).toBe('libre');
+      expect(porNombre['Sala B'].estado_dia).toBe('reservada');
     });
   });
 

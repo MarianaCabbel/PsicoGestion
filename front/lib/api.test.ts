@@ -85,4 +85,23 @@ describe('api client', () => {
     );
     expect(assign).not.toHaveBeenCalled();
   });
+
+  it('convierte una caída de red en un ApiError accionable con estado 0', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+
+    await expect(api('/api/salas')).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 0,
+      message: expect.stringMatching(/No se pudo conectar con el servidor/),
+    });
+  });
+
+  it('deja intacta una petición abortada', async () => {
+    const abort = new DOMException('Aborted', 'AbortError');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(abort));
+
+    await expect(
+      api('/api/salas', { signal: new AbortController().signal }),
+    ).rejects.toBe(abort);
+  });
 });

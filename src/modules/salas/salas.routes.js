@@ -6,6 +6,7 @@ const { validate } = require('../../middleware/validate');
 const { idParams, confirmacionBody } = require('../comun.validators');
 const {
   crearSalaSchema,
+  actualizarSalaSchema,
   listarSalasQuery,
   disponibilidadDiaQuery,
   disponibilidadRangoQuery,
@@ -28,6 +29,13 @@ router.get(
 );
 
 router.get('/:id', requirePermission('salas:leer'), validate({ params: idParams }), controller.obtener);
+
+router.put(
+  '/:id',
+  requirePermission('salas:editar'),
+  validate({ params: idParams, body: actualizarSalaSchema }),
+  controller.actualizar
+);
 
 router.get(
   '/:id/disponibilidad',

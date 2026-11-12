@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { PatientForm, type PatientRecord } from '@/components/clinical/patient-form';
 import { AppFrame } from '@/components/app/app-frame';
-import { PrivacyFooter } from '@/components/app/privacy-footer';
 import { useSession } from '@/components/providers/session-provider';
+import { ActionMenu, type ActionMenuItem } from '@/components/ui/action-menu';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { DataTable, type DataColumn } from '@/components/ui/data-table';
@@ -252,54 +252,47 @@ export default function PacientesPage() {
     {
       key: 'actions',
       header: 'Acciones',
-      render: (patient) => (
-        <div className="clinical-row-actions">
-          <Button
-            disabled={exportingId === patient.id}
-            onClick={() => void exportPatientData(patient)}
-            size="sm"
-            variant="secondary"
-          >
-            {exportingId === patient.id ? 'Exportando…' : 'Exportar datos'}
-          </Button>
-          {user?.rol === 'administrador' && !patient.anonimizado_at && (
-            <Button onClick={() => setArcoPatient(patient)} size="sm" variant="danger">
-              Anonimizar
-            </Button>
-          )}
-          {patient.estado === 'activo' ? (
-            <>
-              <Button
-                onClick={() => {
-                  setEditing(patient);
-                  setFormOpen(true);
-                }}
-                size="sm"
-                variant="secondary"
-              >
-                Editar
-              </Button>
-              <Button
-                onClick={() => setPendingAction({ patient, action: 'baja' })}
-                size="sm"
-                variant="danger"
-              >
-                Dar de baja
-              </Button>
-            </>
-          ) : user?.rol === 'administrador' && !patient.anonimizado_at ? (
-            <Button
-              onClick={() => setPendingAction({ patient, action: 'reactivar' })}
-              size="sm"
-              variant="secondary"
-            >
-              Reactivar
-            </Button>
-          ) : (
-            <span className="clinical-muted">Solo administración</span>
-          )}
-        </div>
-      ),
+      render: (patient) => {
+        const items: ActionMenuItem[] = [
+          {
+            label: exportingId === patient.id ? 'Exportando…' : 'Exportar datos',
+            onSelect: () => void exportPatientData(patient),
+            disabled: exportingId === patient.id,
+          },
+        ];
+        if (user?.rol === 'administrador' && !patient.anonimizado_at) {
+          items.push({
+            label: 'Anonimizar',
+            onSelect: () => setArcoPatient(patient),
+            variant: 'danger',
+          });
+        }
+        if (patient.estado === 'activo') {
+          items.push(
+            {
+              label: 'Editar',
+              onSelect: () => {
+                setEditing(patient);
+                setFormOpen(true);
+              },
+            },
+            {
+              label: 'Dar de baja',
+              onSelect: () => setPendingAction({ patient, action: 'baja' }),
+              variant: 'danger',
+            },
+          );
+        } else if (user?.rol === 'administrador' && !patient.anonimizado_at) {
+          items.push({
+            label: 'Reactivar',
+            onSelect: () => setPendingAction({ patient, action: 'reactivar' }),
+          });
+        }
+        if (items.length === 0) {
+          return <span className="clinical-muted">Solo administración</span>;
+        }
+        return <ActionMenu items={items} label={`Acciones para ${patient.nombre_completo}`} />;
+      },
     },
   ];
 
@@ -396,6 +389,7 @@ export default function PacientesPage() {
           if (!open) setEditing(null);
         }}
         open={formOpen}
+        size="lg"
         title={editing ? 'Editar paciente' : 'Nuevo paciente'}
       >
         <PatientForm
@@ -481,7 +475,6 @@ export default function PacientesPage() {
           </Button>
         </div>
       </Dialog>
-      <PrivacyFooter />
     </AppFrame>
   );
 }

@@ -9,6 +9,7 @@ __v0_jsx-dev-runtime.ts
 # Environment variables
 .env
 .env*.local
+.env.prod
 
 # Common ignores
 node_modules
@@ -17,3 +18,9 @@ coverage/
 *.sqlite
 *.tsbuildinfo
 .DS_Store
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/

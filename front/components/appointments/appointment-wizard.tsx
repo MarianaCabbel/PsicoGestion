@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Dialog } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -13,6 +14,7 @@ type LookupItem = { id: number; nombre_completo?: string; nombre?: string };
 type Appointment = {
   id: number;
   folio: string;
+  estado?: string;
   fecha: string;
   hora_inicio: string;
   duracion_slots: number;
@@ -63,8 +65,10 @@ export function AppointmentWizard({
   const [patientQuery, setPatientQuery] = useState('');
   const [starts, setStarts] = useState<AvailableStart[]>([]);
   const [selectionUnavailable, setSelectionUnavailable] = useState(false);
+  const [availabilityNote, setAvailabilityNote] = useState('');
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
   const [reloadAvailability, setReloadAvailability] = useState(0);
 
@@ -124,12 +128,14 @@ export function AppointmentWizard({
       setPatientQuery('');
     }
     setStep(0);
+    setConfirming(false);
     setError('');
   }, [editing, initialValues, open]);
 
   useEffect(() => {
-    if (!open || !values.terapeuta_id || !values.fecha || (step < 3 && !editing)) {
+    if (!open || !values.terapeuta_id || !values.fecha || (step < 2 && !editing)) {
       setStarts([]);
+      setAvailabilityNote('');
       return;
     }
     const controller = new AbortController();
@@ -141,11 +147,14 @@ export function AppointmentWizard({
     });
     if (editing) params.set('excluir_cita_id', String(editing.id));
     setAvailabilityLoading(true);
-    void api<{ inicios: AvailableStart[] }>(`/api/citas/disponibilidad?${params}`, {
-      signal: controller.signal,
-    })
+    setAvailabilityNote('');
+    void api<{ inicios: AvailableStart[]; motivo?: string }>(
+      `/api/citas/disponibilidad?${params}`,
+      { signal: controller.signal },
+    )
       .then((response) => {
         setStarts(response.data.inicios);
+        setAvailabilityNote(response.data.motivo ?? '');
         const selectedRoom = response.data.inicios
           .find((start) => start.hora_inicio === values.hora_inicio)
           ?.salas_libres.find((room) => room.id === values.sala_id);
@@ -183,6 +192,7 @@ export function AppointmentWizard({
       setValues((current) => ({ ...current, hora_inicio: '', sala_id: 0 }));
       setSelectedRoomName('');
       setSelectionUnavailable(false);
+      setAvailabilityNote('');
     }
     if (key === 'sala_id' && value === 0) setSelectedRoomName('');
     if (key === 'hora_inicio') setSelectionUnavailable(false);
@@ -195,6 +205,7 @@ export function AppointmentWizard({
     if (step === 1 && !values.terapeuta_id)
       return setError('Selecciona un terapeuta para continuar.');
     if (step === 2 && !values.fecha) return setError('Selecciona una fecha para continuar.');
+    if (step === 2 && availabilityNote) return setError(availabilityNote);
     if (step === 3 && (!values.hora_inicio || !values.sala_id)) {
       return setError('Selecciona un horario disponible y una sala.');
     }
@@ -208,14 +219,20 @@ export function AppointmentWizard({
   }
 
   async function submit() {
+    setConfirming(false);
     setLoading(true);
     setError('');
     try {
-      await api<Appointment>(editing ? `/api/citas/${editing.id}` : '/api/citas', {
+      const response = await api<Appointment>(editing ? `/api/citas/${editing.id}` : '/api/citas', {
         method: editing ? 'PUT' : 'POST',
         body: values,
       });
-      toast.success(editing ? 'Cita modificada correctamente.' : 'Cita agendada correctamente.');
+      const folio = response.data?.folio ?? editing?.folio ?? '';
+      toast.success(
+        editing
+          ? `Cita ${folio} modificada correctamente.`
+          : `Cita ${folio} agendada correctamente.`,
+      );
       onOpenChange(false);
       onSaved();
     } catch (cause) {
@@ -239,12 +256,14 @@ export function AppointmentWizard({
   const selectedStart = starts.find((start) => start.hora_inicio === values.hora_inicio);
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={editing ? `Modificar cita ${editing.folio}` : 'Agendar cita'}
-      description="Completa los cinco pasos para reservar un horario."
-    >
+    <>
+      <Dialog
+        open={open}
+        onOpenChange={onOpenChange}
+        size="lg"
+        title={editing ? `Modificar cita ${editing.folio}` : 'Agendar cita'}
+        description="Completa los cinco pasos para reservar un horario."
+      >
       <div className="appointment-step-indicator" aria-label={`Paso ${step + 1} de 5`}>
         {['Paciente', 'Terapeuta', 'Fecha', 'Horario', 'Confirmación'].map((label, index) => (
           <span aria-current={step === index ? 'step' : undefined} key={label}>
@@ -252,6 +271,18 @@ export function AppointmentWizard({
           </span>
         ))}
       </div>
+
+      {editing && (
+        <section className="appointment-current" aria-label="Datos actuales de la cita">
+          <p>
+            <strong>Folio:</strong> {editing.folio} · <strong>Estatus actual:</strong>{' '}
+            {editing.estado ?? 'pendiente'}
+          </p>
+          <p>
+            {editing.fecha.slice(0, 10)} · {editing.hora_inicio} · {editing.sala.nombre}
+          </p>
+        </section>
+      )}
 
       {step === 0 && (
         <div className="ui-form">
@@ -262,19 +293,26 @@ export function AppointmentWizard({
             placeholder="Nombre del paciente"
             value={patientQuery}
           />
-          <Select
-            id="appointment-patient"
-            label="Paciente"
-            onChange={(event) => change('paciente_id', Number(event.target.value))}
-            value={String(values.paciente_id)}
-          >
-            <option value="0">Seleccionar paciente</option>
-            {filteredPatients.map((patient) => (
-              <option key={patient.id} value={patient.id}>
-                {patient.nombre_completo}
-              </option>
-            ))}
-          </Select>
+          <div className="patient-search-results" role="group" aria-label="Pacientes encontrados">
+            {filteredPatients.length === 0 ? (
+              <p className="patient-search-empty">Sin coincidencias…</p>
+            ) : (
+              filteredPatients.map((patient) => (
+                <button
+                  aria-pressed={values.paciente_id === patient.id}
+                  className="patient-search-option"
+                  key={patient.id}
+                  onClick={() => {
+                    change('paciente_id', patient.id);
+                    setPatientQuery(patient.nombre_completo ?? '');
+                  }}
+                  type="button"
+                >
+                  {patient.nombre_completo}
+                </button>
+              ))
+            )}
+          </div>
         </div>
       )}
       {step === 1 && (
@@ -304,6 +342,12 @@ export function AppointmentWizard({
             type="date"
             value={values.fecha}
           />
+          {availabilityLoading && <p role="status">Verificando disponibilidad del día…</p>}
+          {!availabilityLoading && availabilityNote && (
+            <p className="alert warning" role="status">
+              <strong>No se puede agendar en esta fecha.</strong> {availabilityNote}
+            </p>
+          )}
         </div>
       )}
       {step === 3 && (
@@ -389,6 +433,12 @@ export function AppointmentWizard({
             <dt>Sala</dt>
             <dd>{selectedRoomName || editing?.sala.nombre}</dd>
           </div>
+          {editing && (
+            <div>
+              <dt>Estatus</dt>
+              <dd>{editing.estado ?? 'pendiente'}</dd>
+            </div>
+          )}
         </dl>
       )}
 
@@ -407,11 +457,29 @@ export function AppointmentWizard({
         {step < 4 ? (
           <Button onClick={nextStep}>Siguiente</Button>
         ) : (
-          <Button disabled={loading} onClick={() => void submit()}>
+          <Button
+            disabled={loading}
+            onClick={() => (editing ? setConfirming(true) : void submit())}
+          >
             {loading ? 'Guardando…' : editing ? 'Guardar cambios' : 'Confirmar cita'}
           </Button>
         )}
       </div>
     </Dialog>
+
+    {editing && confirming && (
+      <ConfirmDialog
+        busy={loading}
+        confirmLabel="Confirmar modificación"
+        description={`Se actualizará la cita ${editing.folio}. Revisa que el horario y la sala sigan disponibles.`}
+        onConfirm={() => void submit()}
+        onOpenChange={(open) => {
+          if (!open) setConfirming(false);
+        }}
+        open
+        title="Confirmar modificación"
+      />
+    )}
+    </>
   );
 }

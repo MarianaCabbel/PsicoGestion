@@ -18,6 +18,10 @@ module.exports = {
   crear: manejar((req) => service.crear(req.validated.body, contextoDe(req)), 'Sala registrada correctamente.', 201),
   listar: manejar((req) => service.listar(req.validated.query), 'Salas consultadas correctamente.'),
   obtener: manejar((req) => service.obtener(req.validated.params.id, contextoDe(req)), 'Sala consultada correctamente.'),
+  actualizar: manejar(
+    (req) => service.actualizar(req.validated.params.id, req.validated.body, contextoDe(req)),
+    'Sala actualizada correctamente.'
+  ),
   darDeBaja: manejar((req) => service.darDeBaja(req.validated.params.id, contextoDe(req)), 'Sala dada de baja correctamente.'),
   reactivar: manejar((req) => service.reactivar(req.validated.params.id, contextoDe(req)), 'Sala reactivada correctamente.'),
   disponibilidadDelDia: manejar(

@@ -1,10 +1,12 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { useSession } from '@/components/providers/session-provider';
+import { useTheme } from '@/components/providers/theme-provider';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -75,18 +77,25 @@ function LoginForm({ method }: { method: 'email' | 'phone' }) {
 }
 
 export default function LoginPage() {
+  const { theme } = useTheme();
   const items: TabItem[] = [
     { id: 'email', label: 'Correo', content: <LoginForm method="email" /> },
     { id: 'phone', label: 'Teléfono', content: <LoginForm method="phone" /> },
   ];
 
   return (
-    <Card className="auth-card-modern">
+    <Card className="auth-card-modern auth-card-login">
       <CardHeader className="auth-card-header">
-        <span className="auth-logo" aria-hidden="true">
-          P
-        </span>
-        <p className="auth-eyebrow">PsicoGestión · SEAP</p>
+        <Image
+          alt=""
+          aria-hidden="true"
+          className="auth-logo"
+          height={44}
+          priority
+          src={theme === 'light' ? '/logo_light-mode.png' : '/logo_dark-mode.png'}
+          width={44}
+        />
+        <p className="auth-eyebrow">PsicoGestión</p>
         <h1>Bienvenida, bienvenido</h1>
         <p>Ingresa a tu espacio de trabajo.</p>
       </CardHeader>

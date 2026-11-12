@@ -19,7 +19,6 @@ export function AgendaToolbar({
   onTherapistChange,
   onRoomChange,
   onNavigate,
-  onPrint,
 }: {
   view: AgendaView;
   date: string;
@@ -32,7 +31,6 @@ export function AgendaToolbar({
   onTherapistChange: (id: string) => void;
   onRoomChange: (id: string) => void;
   onNavigate: (direction: -1 | 1) => void;
-  onPrint: () => void;
 }) {
   return (
     <div className="agenda-toolbar" aria-label="Herramientas de agenda">
@@ -83,9 +81,6 @@ export function AgendaToolbar({
             </option>
           ))}
         </Select>
-        <Button onClick={onPrint} variant="secondary">
-          Vista imprimible
-        </Button>
       </div>
     </div>
   );

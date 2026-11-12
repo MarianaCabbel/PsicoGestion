@@ -24,6 +24,7 @@ const PERMISOS = Object.freeze({
   'terapeutas:reactivar': [ROLES.ADMINISTRADOR],
   'salas:leer': TODOS,
   'salas:crear': TODOS,
+  'salas:editar': TODOS,
   'salas:baja': TODOS,
   'salas:reactivar': [ROLES.ADMINISTRADOR],
   'citas:leer': TODOS,

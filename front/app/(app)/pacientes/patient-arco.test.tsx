@@ -72,7 +72,8 @@ describe('Patient ARCO actions', () => {
   it('requires a second typed confirmation before sending anonymization', async () => {
     const user = userEvent.setup();
     render(<PacientesPage />);
-    await user.click(await screen.findByRole('button', { name: 'Anonimizar' }));
+    await user.click(await screen.findByRole('button', { name: 'Acciones para Paciente de prueba' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Anonimizar' }));
 
     const firstDialog = screen.getByRole('dialog', {
       name: 'Confirmar solicitud de anonimización',

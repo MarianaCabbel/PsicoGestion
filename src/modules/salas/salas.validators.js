@@ -4,14 +4,17 @@ const { esFechaValida } = require('../../lib/fechas');
 const { diasEntre } = require('../../lib/rangos');
 const { textoRequerido, fechaCalendario, consultaListado } = require('../comun.validators');
 
-const crearSalaSchema = z.object({
-  nombre: textoRequerido('El nombre de la sala es obligatorio.', (base) =>
-    base
-      .max(SALA_NOMBRE_MAXIMO, `El nombre de la sala no puede exceder ${SALA_NOMBRE_MAXIMO} caracteres.`)
-      .regex(/^[\p{L}\p{N} .-]+$/u, 'El nombre de la sala solo puede contener letras, números, espacios, punto y guion.')
-      .transform((valor) => valor.replace(/\s+/g, ' '))
-  ),
-});
+const nombreSala = textoRequerido('El nombre de la sala es obligatorio.', (base) =>
+  base
+    .max(SALA_NOMBRE_MAXIMO, `El nombre de la sala no puede exceder ${SALA_NOMBRE_MAXIMO} caracteres.`)
+    .regex(/^[\p{L}\p{N} .-]+$/u, 'El nombre de la sala solo puede contener letras, números, espacios, punto y guion.')
+    .transform((valor) => valor.replace(/\s+/g, ' '))
+);
+
+const crearSalaSchema = z.object({ nombre: nombreSala });
+
+/** El nombre es el único campo editable; se revalida con las reglas del alta. */
+const actualizarSalaSchema = z.object({ nombre: nombreSala });
 
 const listarSalasQuery = consultaListado(['activa', 'baja', 'todas']);
 
@@ -40,6 +43,7 @@ const disponibilidadRangoQuery = z
 
 module.exports = {
   crearSalaSchema,
+  actualizarSalaSchema,
   listarSalasQuery,
   disponibilidadDiaQuery,
   disponibilidadRangoQuery,

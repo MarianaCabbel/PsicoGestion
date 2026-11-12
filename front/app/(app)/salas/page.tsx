@@ -4,12 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { toast } from 'sonner';
 import { AppFrame } from '@/components/app/app-frame';
+import { ActionMenu, type ActionMenuItem } from '@/components/ui/action-menu';
+import { ArrowLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { DataTable, type DataColumn } from '@/components/ui/data-table';
 import { Dialog } from '@/components/ui/dialog';
-import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -33,6 +35,7 @@ type DayAvailability = {
     ocupados: number[];
     horas_ocupadas: string[];
     libres: number;
+    estado_dia: 'libre' | 'reservada';
   }[];
 };
 type MonthAvailability = {
@@ -41,7 +44,8 @@ type MonthAvailability = {
     fecha: string;
     dia_atencion: boolean;
     slots_ocupados: number;
-    estado: 'libre' | 'parcial' | 'reservada';
+    estado: 'libre' | 'reservada';
+    nivel: 'libre' | 'parcial' | 'completa';
   }[];
 };
 type RoomAction = { room: Room };
@@ -61,9 +65,13 @@ export default function SalasPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<Room | null>(null);
   const [name, setName] = useState('');
+  const [fieldError, setFieldError] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [pendingAction, setPendingAction] = useState<RoomAction | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<number | ''>('');
+  const [view, setView] = useState<'list' | 'availability'>('list');
   const [selectedDate, setSelectedDate] = useState(localDate(new Date()));
   const [monthDate, setMonthDate] = useState(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -137,21 +145,58 @@ export default function SalasPage() {
     return () => controller.abort();
   }, [monthRange, selectedRoom]);
 
-  async function createRoom(event: FormEvent<HTMLFormElement>) {
+  function openCreate() {
+    setError('');
+    setEditing(null);
+    setName('');
+    setFieldError('');
+    setSaveError('');
+    setDialogOpen(true);
+  }
+
+  function openEdit(room: Room) {
+    setEditing(room);
+    setName(room.nombre);
+    setFieldError('');
+    setSaveError('');
+    setDialogOpen(true);
+  }
+
+  function closeEditor() {
+    setDialogOpen(false);
+    setEditing(null);
+    setName('');
+    setFieldError('');
+    setSaveError('');
+  }
+
+  /** Mensaje por campo que devuelve el backend (por ejemplo, nombre duplicado). */
+  function nombreInvalido(cause: unknown): string {
+    if (!cause || typeof cause !== 'object' || !('details' in cause)) return '';
+    const { details } = cause as { details?: unknown };
+    if (!details || typeof details !== 'object' || !('errors' in details)) return '';
+    return (details as { errors?: Record<string, string> }).errors?.nombre ?? '';
+  }
+
+  async function saveRoom(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
-    setError('');
+    setFieldError('');
+    setSaveError('');
     try {
-      await api<Room>('/api/salas', {
-        method: 'POST',
+      await api<Room>(editing ? `/api/salas/${editing.id}` : '/api/salas', {
+        method: editing ? 'PUT' : 'POST',
         body: { nombre: name.trim().replace(/\s+/g, ' ') },
       });
-      toast.success('Sala creada correctamente.');
-      setDialogOpen(false);
-      setName('');
+      toast.success(editing ? 'Sala actualizada correctamente.' : 'Sala creada correctamente.');
+      closeEditor();
       await loadRooms();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'No se pudo crear la sala.');
+      const message = cause instanceof Error ? cause.message : 'No se pudo guardar la sala.';
+      const invalido = nombreInvalido(cause);
+      if (invalido) setFieldError(invalido);
+      else setSaveError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -183,36 +228,90 @@ export default function SalasPage() {
   const firstWeekday = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1).getDay();
   const calendarCells = [...Array(firstWeekday).fill(null), ...(monthAvailability?.dias ?? [])];
 
+  const columns: DataColumn<Room>[] = [
+    {
+      key: 'sala',
+      header: 'Sala',
+      render: (room) => (
+        <span className="table-identity">
+          <span>
+            <strong>{room.nombre}</strong>
+            <small>Sala #{room.id}</small>
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: 'estado',
+      header: 'Estado',
+      render: (room) => (
+        <Badge variant={room.estado === 'activa' ? 'success' : 'default'}>{room.estado}</Badge>
+      ),
+    },
+    {
+      key: 'citas_hoy',
+      header: 'Citas de hoy',
+      render: (room) => room.citas_hoy,
+    },
+    {
+      key: 'estado_actual',
+      header: 'Estado actual',
+      render: (room) => (room.ocupada_ahora ? 'Ocupada ahora' : 'Libre ahora'),
+    },
+    {
+      key: 'actions',
+      header: 'Acciones',
+      render: (room) => {
+        const items: ActionMenuItem[] = [
+          {
+            label: 'Ver disponibilidad',
+            onSelect: () => {
+              setSelectedRoom(room.id);
+              const date = parseLocalDate(selectedDate);
+              setMonthDate(new Date(date.getFullYear(), date.getMonth(), 1));
+              setView('availability');
+            },
+          },
+        ];
+        if (room.estado === 'activa') {
+          items.push(
+            { label: 'Editar', onSelect: () => openEdit(room) },
+            {
+              label: 'Dar de baja',
+              onSelect: () => setPendingAction({ room }),
+              variant: 'danger',
+              disabled: saving,
+            },
+          );
+        }
+        return <ActionMenu items={items} label={`Acciones para ${room.nombre}`} />;
+      },
+    },
+  ];
+
   return (
     <AppFrame>
       <main className="clinical-page">
         <header className="clinical-heading">
           <div>
-            <p className="eyebrow">PsicoGestión · Administración</p>
             <h1>Salas</h1>
-            <p className="module-description">
-              Estado en tiempo real y disponibilidad de los espacios de atención.
-            </p>
           </div>
-          <div className="clinical-actions">
-            <Select
-              label="Filtrar salas"
-              onChange={(event) => setStatus(event.target.value)}
-              value={status}
-            >
-              <option value="activa">Activas</option>
-              <option value="baja">Baja</option>
-              <option value="todas">Todas</option>
-            </Select>
-            <Button
-              onClick={() => {
-                setError('');
-                setDialogOpen(true);
-              }}
-            >
-              Nueva sala
-            </Button>
-          </div>
+          {view === 'list' && (
+            <div className="clinical-actions">
+              <div className="room-filter-inline">
+                <Select
+                  label="Filtrar salas"
+                  onChange={(event) => setStatus(event.target.value)}
+                  value={status}
+                >
+                  <option value="activa">Activas</option>
+                  <option value="baja">Baja</option>
+                  <option value="todas">Todas</option>
+                </Select>
+              </div>
+              <Button onClick={openCreate}>Nueva sala</Button>
+            </div>
+          )}
         </header>
 
         {error && (
@@ -220,68 +319,24 @@ export default function SalasPage() {
             {error}
           </p>
         )}
-        {loading ? (
-          <div className="room-card-grid" aria-label="Cargando salas">
-            {[1, 2, 3].map((item) => (
-              <Skeleton className="room-skeleton" key={item} />
-            ))}
-          </div>
-        ) : rooms.length === 0 ? (
-          <EmptyState
-            title="Aún no hay salas"
-            description="Registra una sala para administrar su agenda."
-            action={<Button onClick={() => setDialogOpen(true)}>Crear sala</Button>}
+        {view === 'list' ? (
+          <DataTable
+            columns={columns}
+            emptyDescription="Registra una sala para administrar su agenda."
+            emptyTitle="Aún no hay salas"
+            getRowId={(room) => room.id}
+            loading={loading}
+            rows={rooms}
           />
         ) : (
-          <div className="room-card-grid">
-            {rooms.map((room) => (
-              <Card className="room-card" key={room.id}>
-                <div className="room-card-heading">
-                  <div>
-                    <h2>{room.nombre}</h2>
-                    <p>Sala #{room.id}</p>
-                  </div>
-                  <Badge variant={room.estado === 'activa' ? 'success' : 'default'}>
-                    {room.estado}
-                  </Badge>
-                </div>
-                <dl className="room-status">
-                  <div>
-                    <dt>Citas de hoy</dt>
-                    <dd>{room.citas_hoy}</dd>
-                  </div>
-                  <div>
-                    <dt>Estado actual</dt>
-                    <dd>{room.ocupada_ahora ? 'Ocupada ahora' : 'Libre ahora'}</dd>
-                  </div>
-                </dl>
-                <div className="room-card-actions">
-                  <Button
-                    onClick={() => {
-                      setSelectedRoom(room.id);
-                      const date = parseLocalDate(selectedDate);
-                      setMonthDate(new Date(date.getFullYear(), date.getMonth(), 1));
-                    }}
-                    variant="secondary"
-                  >
-                    Ver disponibilidad
-                  </Button>
-                  {room.estado === 'activa' && (
-                    <Button
-                      disabled={saving}
-                      onClick={() => setPendingAction({ room })}
-                      variant="danger"
-                    >
-                      Dar de baja
-                    </Button>
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
+          <>
+            <div className="room-back-row">
+              <Button variant="secondary" onClick={() => setView('list')}>
+                <ArrowLeft size={18} aria-hidden="true" /> Regresar
+              </Button>
+            </div>
 
-        <section className="room-availability" aria-labelledby="room-day-heading">
+            <section className="room-availability" aria-labelledby="room-day-heading">
           <div className="room-section-heading">
             <div>
               <p className="eyebrow">Agenda</p>
@@ -299,16 +354,21 @@ export default function SalasPage() {
               {!dayAvailability.dia_atencion && (
                 <p className="alert">La clínica no atiende este día.</p>
               )}
-              <div className="room-day-grid">
-                {dayAvailability.salas.map((room) => (
-                  <Card className="room-day-card" key={room.id}>
-                    <h3>{room.nombre}</h3>
-                    <p>{room.libres} bloques libres</p>
-                    <div className="room-slot-grid" aria-label={`Ocupación de ${room.nombre}`}>
+              {selectedRoomDay && (
+                <div className="room-day-grid">
+                  <Card className="room-day-card" key={selectedRoomDay.id}>
+                    <div className="room-card-heading">
+                      <h3>{selectedRoomDay.nombre}</h3>
+                      <Badge variant={selectedRoomDay.estado_dia === 'reservada' ? 'warning' : 'success'}>
+                        {selectedRoomDay.estado_dia === 'reservada' ? 'Reservada' : 'Libre'}
+                      </Badge>
+                    </div>
+                    <p>{selectedRoomDay.libres} bloques libres</p>
+                    <div className="room-slot-grid" aria-label={`Ocupación de ${selectedRoomDay.nombre}`}>
                       {Array.from({ length: dayAvailability.num_slots }, (_, slot) => {
                         const hour = 7 * 60 + slot * 30;
                         const label = `${String(Math.floor(hour / 60)).padStart(2, '0')}:${String(hour % 60).padStart(2, '0')}`;
-                        const occupied = room.ocupados.includes(slot);
+                        const occupied = selectedRoomDay.ocupados.includes(slot);
                         return (
                           <span
                             className={occupied ? 'room-slot occupied' : 'room-slot free'}
@@ -322,8 +382,8 @@ export default function SalasPage() {
                       })}
                     </div>
                   </Card>
-                ))}
-              </div>
+                </div>
+              )}
             </>
           )}
         </section>
@@ -379,7 +439,7 @@ export default function SalasPage() {
                         <button
                           aria-label={`${day.fecha}, ${day.estado}`}
                           aria-pressed={day.fecha === selectedDate}
-                          className={`room-calendar-day ${day.estado} ${day.dia_atencion ? '' : 'non-attendance'}`}
+                          className={`room-calendar-day ${day.nivel === 'completa' ? 'reservada' : day.nivel} ${day.dia_atencion ? '' : 'non-attendance'}`}
                           key={day.fecha}
                           onClick={() => setSelectedDate(day.fecha)}
                           type="button"
@@ -397,38 +457,49 @@ export default function SalasPage() {
                   </div>
                   <div className="room-calendar-legend">
                     <span className="libre">Libre</span>
-                    <span className="parcial">Parcial</span>
-                    <span className="reservada">Reservada</span>
+                    <span className="parcial">Reservada (parcial)</span>
+                    <span className="reservada">Reservada (día completo)</span>
                   </div>
                 </>
               )
             )}
           </section>
         )}
+          </>
+        )}
       </main>
 
       <Dialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        title="Registrar sala"
+        onOpenChange={(open) => {
+          if (open) setDialogOpen(true);
+          else closeEditor();
+        }}
+        size="sm"
+        title={editing ? 'Editar sala' : 'Registrar sala'}
         description="El nombre debe ser único (normalizado) y tener como máximo 10 caracteres."
       >
-        <form className="ui-form" onSubmit={(event) => void createRoom(event)}>
+        <form className="ui-form" onSubmit={(event) => void saveRoom(event)}>
           <Input
             autoFocus
+            error={fieldError || undefined}
             id="room-name"
             label="Nombre de sala"
-            maxLength={10}
             onChange={(event) => setName(event.target.value)}
             required
             value={name}
           />
+          {saveError && (
+            <p className="alert error" role="alert">
+              {saveError}
+            </p>
+          )}
           <div className="ui-dialog-actions">
-            <Button onClick={() => setDialogOpen(false)} variant="secondary">
+            <Button onClick={closeEditor} variant="secondary">
               Cerrar
             </Button>
             <Button disabled={saving || !name.trim()} type="submit">
-              {saving ? 'Guardando…' : 'Crear sala'}
+              {saving ? 'Guardando…' : editing ? 'Guardar cambios' : 'Crear sala'}
             </Button>
           </div>
         </form>

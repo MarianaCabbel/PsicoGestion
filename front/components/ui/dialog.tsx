@@ -2,15 +2,25 @@
 
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 
+type DialogSize = 'sm' | 'md' | 'lg';
+
 type DialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
+  size?: DialogSize;
   children: ReactNode;
 };
 
-export function Dialog({ open, onOpenChange, title, description, children }: DialogProps) {
+export function Dialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  size = 'md',
+  children,
+}: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const id = useId();
   const titleId = `${id}-title`;
@@ -28,7 +38,7 @@ export function Dialog({ open, onOpenChange, title, description, children }: Dia
     <dialog
       aria-describedby={description ? descriptionId : undefined}
       aria-labelledby={titleId}
-      className="ui-dialog"
+      className={`ui-dialog ui-dialog--${size}`}
       onCancel={() => onOpenChange(false)}
       onClose={() => onOpenChange(false)}
       onClick={(event) => {

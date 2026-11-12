@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
+import { escucharCambiosDeCitas } from '@/lib/citas-events';
 
 type Appointment = {
   id: number;
@@ -105,6 +106,9 @@ export default function AgendaPage() {
     return () => controller.abort();
   }, [load]);
 
+  // Si otra pestaña crea, modifica o cancela una cita, la agenda se refresca.
+  useEffect(() => escucharCambiosDeCitas(() => void load()), [load]);
+
   useEffect(() => {
     const controller = new AbortController();
     void Promise.all([
@@ -157,7 +161,10 @@ export default function AgendaPage() {
     });
     return grouped;
   }, [citas]);
-  const dayCounts = new Map((agenda?.dias ?? []).map((day) => [day.fecha, day]));
+  const totalEnVista =
+    view === 'mes'
+      ? (agenda?.dias ?? []).reduce((total, day) => total + day.total, 0)
+      : citas.length;
 
   function navigate(direction: -1 | 1) {
     if (view === 'dia') setDate(addDays(date, direction));
@@ -208,29 +215,36 @@ export default function AgendaPage() {
             <h1>Agenda</h1>
             <p className="module-description">Organización de citas por día, semana y mes.</p>
           </div>
-          <Button
-            onClick={() =>
-              setDraft({
-                terapeuta_id: Number(therapistId) || 0,
-                sala_id: Number(roomId) || 0,
-                fecha: date,
-                hora_inicio: '',
-                duracion_slots: 2,
-              })
-            }
-          >
-            Nueva cita
-          </Button>
+          <div className="clinical-actions">
+            <Button
+              onClick={() =>
+                router.push(
+                  `/agenda/imprimir?vista=${view}&fecha=${date}${therapistId ? `&terapeuta_id=${therapistId}` : ''}${roomId ? `&sala_id=${roomId}` : ''}`,
+                )
+              }
+              variant="secondary"
+            >
+              Vista imprimible
+            </Button>
+            <Button
+              onClick={() =>
+                setDraft({
+                  terapeuta_id: Number(therapistId) || 0,
+                  sala_id: Number(roomId) || 0,
+                  fecha: date,
+                  hora_inicio: '',
+                  duracion_slots: 2,
+                })
+              }
+            >
+              Nueva cita
+            </Button>
+          </div>
         </header>
         <AgendaToolbar
           date={date}
           onDateChange={setDate}
           onNavigate={navigate}
-          onPrint={() =>
-            router.push(
-              `/agenda/imprimir?vista=${view}&fecha=${date}${therapistId ? `&terapeuta_id=${therapistId}` : ''}${roomId ? `&sala_id=${roomId}` : ''}`,
-            )
-          }
           onRoomChange={setRoomId}
           onTherapistChange={setTherapistId}
           onViewChange={setView}
@@ -240,6 +254,9 @@ export default function AgendaPage() {
           therapists={therapists}
           view={view}
         />
+        <p className="agenda-count" aria-live="polite">
+          {totalEnVista} {totalEnVista === 1 ? 'cita' : 'citas'} en la vista seleccionada
+        </p>
         {error && (
           <p className="alert error" role="alert">
             {error}
@@ -411,9 +428,6 @@ export default function AgendaPage() {
           </div>
         )}
       </Dialog>
-      <span className="visually-hidden" aria-live="polite">
-        {dayCounts.get(date)?.total ?? 0} citas en la fecha seleccionada.
-      </span>
     </AppFrame>
   );
 }

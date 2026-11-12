@@ -35,6 +35,24 @@ function errorMessage(payload: unknown, status: number): string {
   return `La solicitud falló (HTTP ${status}).`;
 }
 
+const NETWORK_ERROR_MESSAGE =
+  'No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.';
+
+function fueAbortada(cause: unknown): boolean {
+  return cause instanceof Error && cause.name === 'AbortError';
+}
+
+/** Envuelve fetch para convertir una caída de red en un ApiError con mensaje accionable. */
+async function pedir(input: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch (cause) {
+    // Quien canceló la petición espera distinguirla: no la convertimos en ApiError.
+    if (fueAbortada(cause)) throw cause;
+    throw new ApiError(NETWORK_ERROR_MESSAGE, 0);
+  }
+}
+
 export async function api<T>(
   path: string,
   { body, headers, redirectOnUnauthorized = true, ...options }: ApiRequestOptions = {},
@@ -45,7 +63,7 @@ export async function api<T>(
     requestHeaders.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await pedir(`${API_BASE_URL}${path}`, {
     ...options,
     headers: requestHeaders,
     credentials: 'include',
@@ -75,7 +93,7 @@ export async function api<T>(
 }
 
 export async function apiBlob(path: string, options: RequestInit = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await pedir(`${API_BASE_URL}${path}`, {
     ...options,
     credentials: 'include',
   });

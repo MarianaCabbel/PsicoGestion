@@ -38,6 +38,8 @@ Checklist del estado del repositorio y sus capacidades implementadas. Las fases 
 - [x] Acciones administrativas protegidas en API y frontend; doble confirmación para anonimizar.
 - [x] Cobertura backend ≥85% en statements/líneas y ≥95% en statements/líneas de CURP, slots y anti-traslape.
 - [x] Prueba automática de sesión y rol en las rutas registradas de los módulos API.
+- [x] Pruebas de interacción de salas, citas y asistente: edición, conservación ante 409/red y confirmación de cambios.
+- [x] Humo E2E público con Playwright y presupuesto de carga de `/login` (<1 s local, límite 5 s).
 - [ ] Cobertura global frontend ≥70% (medición actual: 31.03%).
 - [x] Axe-core sin violaciones en el aviso público auditado en navegador de producción.
 - [ ] Medición de bundle y rendimiento con objetivos de release/Core Web Vitals acordados.
