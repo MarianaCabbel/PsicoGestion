@@ -31,7 +31,9 @@ export type PatientRecord = {
 };
 
 const emptyValues: PatientFormValues = {
-  nombre_completo: '',
+  nombre: '',
+  apellido_paterno: '',
+  apellido_materno: '',
   curp: '',
   sexo: 'H',
   fecha_nacimiento: '',
@@ -52,6 +54,20 @@ export function PatientForm({
   busy?: boolean;
 }) {
   const isEditing = patient !== null;
+  const splitName = (full: string) => {
+    const parts = full.trim().split(/\s+/);
+    if (parts.length <= 1) {
+      return { nombre: parts[0] ?? '', apellido_paterno: '', apellido_materno: '' };
+    }
+    if (parts.length === 2) {
+      return { nombre: parts[0], apellido_paterno: parts[1], apellido_materno: '' };
+    }
+    return {
+      nombre: parts[0],
+      apellido_paterno: parts[1],
+      apellido_materno: parts.slice(2).join(' '),
+    };
+  };
   const {
     register,
     handleSubmit,
@@ -63,7 +79,7 @@ export function PatientForm({
     mode: 'onChange',
     defaultValues: patient
       ? {
-          nombre_completo: patient.nombre_completo,
+          ...splitName(patient.nombre_completo),
           curp: patient.curp,
           sexo: patient.sexo,
           fecha_nacimiento: patient.fecha_nacimiento.slice(0, 10),
@@ -89,11 +105,25 @@ export function PatientForm({
   return (
     <form className="clinical-form" onSubmit={handleSubmit((values) => onSave(values, isEditing))}>
       <Input
-        autoComplete="name"
-        error={errors.nombre_completo?.message}
-        label="Nombre completo"
+        autoComplete="given-name"
+        error={errors.nombre?.message}
+        label="Nombre"
         maxLength={50}
-        {...register('nombre_completo')}
+        {...register('nombre')}
+      />
+      <Input
+        autoComplete="family-name"
+        error={errors.apellido_paterno?.message}
+        label="Apellido paterno"
+        maxLength={50}
+        {...register('apellido_paterno')}
+      />
+      <Input
+        autoComplete="additional-name"
+        error={errors.apellido_materno?.message}
+        label="Apellido materno"
+        maxLength={50}
+        {...register('apellido_materno')}
       />
       <Input
         autoCapitalize="characters"
@@ -133,7 +163,7 @@ export function PatientForm({
       <Input
         autoComplete="email"
         error={errors.correo?.message}
-        label="Correo electrónico (opcional)"
+        label="Correo electrónico"
         maxLength={150}
         type="email"
         {...register('correo')}

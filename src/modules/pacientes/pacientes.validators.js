@@ -7,7 +7,7 @@ const {
   telefonoDiezDigitos,
   fechaCalendario,
   agregarReglasDeEdad,
-  correoOpcional,
+  correoNormalizado,
   consultaListado,
 } = require('../comun.validators');
 
@@ -30,7 +30,7 @@ const campos = {
   ),
   fecha_nacimiento: fechaCalendario('La fecha de nacimiento'),
   telefono: telefonoDiezDigitos('El teléfono'),
-  correo: correoOpcional(),
+  correo: correoNormalizado('El correo es obligatorio.'),
 };
 
 const baseSchema = z.object(campos);

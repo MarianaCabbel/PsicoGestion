@@ -19,7 +19,9 @@ describe('PatientForm', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<PatientForm patient={null} onCancel={vi.fn()} onSave={onSave} />);
 
-    await user.type(screen.getByLabelText('Nombre completo'), 'María Pérez');
+    await user.type(screen.getByLabelText('Nombre'), 'María');
+    await user.type(screen.getByLabelText('Apellido paterno'), 'Pérez');
+    await user.type(screen.getByLabelText('Apellido materno'), 'López');
     fireEvent.change(screen.getByLabelText('CURP'), { target: { value: validCurp() } });
 
     await waitFor(() => {
@@ -27,6 +29,7 @@ describe('PatientForm', () => {
       expect(screen.getByLabelText('Sexo')).toHaveValue('H');
     });
     await user.type(screen.getByLabelText('Teléfono'), '9991234567');
+    await user.type(screen.getByLabelText('Correo electrónico'), 'ana@uady.mx');
 
     const submit = screen.getByRole('button', { name: 'Registrar paciente' });
     expect(submit).toBeDisabled();
