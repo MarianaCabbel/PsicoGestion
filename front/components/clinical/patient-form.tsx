@@ -119,9 +119,16 @@ export function PatientForm({
       <Input
         autoComplete="tel"
         error={errors.telefono?.message}
+        inputMode="numeric"
         label="Teléfono"
-        maxLength={14}
+        maxLength={10}
+        pattern="[0-9]*"
         {...register('telefono')}
+        onChange={(event) => {
+          setValue('telefono', event.target.value.replace(/\D/g, ''), {
+            shouldValidate: true,
+          });
+        }}
       />
       <Input
         autoComplete="email"

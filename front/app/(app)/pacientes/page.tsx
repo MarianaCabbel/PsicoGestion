@@ -46,6 +46,7 @@ export default function PacientesPage() {
   const [error, setError] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PatientRecord | null>(null);
+  const [formSession, setFormSession] = useState(0);
   const [pendingAction, setPendingAction] = useState<PatientAction | null>(null);
   const [arcoPatient, setArcoPatient] = useState<ArcoPatient | null>(null);
   const [anonymizationPhrase, setAnonymizationPhrase] = useState('');
@@ -273,6 +274,7 @@ export default function PacientesPage() {
               label: 'Editar',
               onSelect: () => {
                 setEditing(patient);
+                setFormSession((value) => value + 1);
                 setFormOpen(true);
               },
             },
@@ -306,6 +308,7 @@ export default function PacientesPage() {
           <Button
             onClick={() => {
               setEditing(null);
+              setFormSession((value) => value + 1);
               setFormOpen(true);
             }}
           >
@@ -391,6 +394,7 @@ export default function PacientesPage() {
         title={editing ? 'Editar paciente' : 'Nuevo paciente'}
       >
         <PatientForm
+          key={formSession}
           busy={saving}
           onCancel={() => {
             setFormOpen(false);
