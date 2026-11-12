@@ -934,6 +934,10 @@ input:focus {
   margin-bottom: 18px;
 }
 
+.agenda-print-back {
+  margin-right: auto;
+}
+
 .agenda-privacy-toggle {
   display: flex;
   flex-direction: row;
@@ -1087,6 +1091,9 @@ input:focus {
 
   .workspace-sidebar,
   .workspace-header,
+  .workspace-mobile-topbar,
+  .workspace-mobile-menu,
+  .workspace-mobile-backdrop,
   .no-print {
     display: none !important;
   }
@@ -1706,7 +1713,8 @@ html[data-theme='dark'] .ui-skeleton {
 .ui-action-popover {
   z-index: 60;
   display: grid;
-  min-width: 190px;
+  min-width: 0;
+  max-width: calc(100vw - 16px);
   max-height: min(70vh, 360px);
   overflow: auto;
   border: 1px solid var(--border);
@@ -1895,6 +1903,7 @@ html[data-theme='dark'] .ui-skeleton {
 .workspace-main {
   min-width: 0;
   flex: 1;
+  container-type: inline-size;
 }
 
 .workspace-header {
@@ -1959,6 +1968,8 @@ html[data-theme='dark'] .ui-skeleton {
   width: min(100%, 1440px);
   margin: 0 auto;
   padding: clamp(12px, 2vw, 24px);
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 .session-loading,
@@ -2113,11 +2124,13 @@ html[data-theme='dark'] .primary-action {
     width: 340px;
     max-width: 90vw;
     min-width: 280px;
+    max-height: 100vh;
     transform: translateX(-100%);
     visibility: hidden;
     transition: transform 0.2s ease, visibility 0.2s ease;
     padding: 16px;
     box-sizing: border-box;
+    overflow-y: auto;
   }
 
   .workspace-sidebar > *,
@@ -2151,6 +2164,11 @@ html[data-theme='dark'] .primary-action {
   }
 
   .workspace-collapse {
+    display: none;
+  }
+
+  .clinical-heading h1,
+  .clinical-heading h2 {
     display: none;
   }
 }
@@ -2192,7 +2210,7 @@ html[data-theme='dark'] .primary-action {
   }
 
   .ui-table td {
-    border: none;
+    border: none !important;
     padding: 6px 0;
   }
 
@@ -2219,17 +2237,25 @@ html[data-theme='dark'] .primary-action {
   .ui-table td[data-label="Estado"],
   .ui-table td[data-label="Acciones"] {
     position: absolute;
-    top: 12px;
     display: inline-block;
     width: auto;
     padding: 0;
+    margin: 0;
+  }
+
+  .ui-table td[data-label="Estado"] .ui-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
   }
 
   .ui-table td[data-label="Estado"] {
-    right: 52px;
+    top: 12px;
+    right: 60px;
   }
 
   .ui-table td[data-label="Acciones"] {
+    top: 8px;
     right: 12px;
   }
 
@@ -2266,7 +2292,7 @@ html[data-theme='dark'] .primary-action {
   }
 
   .appointment-table td {
-    border: none;
+    border: none !important;
     padding: 6px 0;
   }
 
@@ -2287,17 +2313,25 @@ html[data-theme='dark'] .primary-action {
   .appointment-table td[data-label="Estado"],
   .appointment-table td[data-label="Acciones"] {
     position: absolute;
-    top: 12px;
     display: inline-block;
     width: auto;
     padding: 0;
+    margin: 0;
+  }
+
+  .appointment-table td[data-label="Estado"] .ui-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
   }
 
   .appointment-table td[data-label="Estado"] {
-    right: 52px;
+    top: 12px;
+    right: 60px;
   }
 
   .appointment-table td[data-label="Acciones"] {
+    top: 8px;
     right: 12px;
   }
 
@@ -2328,6 +2362,170 @@ html[data-theme='dark'] .primary-action {
 
   .ui-table td[data-label="Correo institucional"],
   .ui-table td[data-label="Correo autorizado"],
+  .appointment-table td[data-label="Correo institucional"],
+  .appointment-table td[data-label="Correo autorizado"] {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+@container (max-width: 760px) {
+  .clinical-heading h1,
+  .clinical-heading h2 {
+    display: none;
+  }
+
+  .ui-table-wrap {
+    background: transparent;
+    border: none;
+  }
+
+  .ui-table,
+  .ui-table thead,
+  .ui-table tbody,
+  .ui-table tr,
+  .ui-table th,
+  .ui-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .ui-table thead {
+    display: none;
+  }
+
+  .ui-table tr {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    padding: 12px;
+    padding-top: 44px;
+    background: var(--panel);
+    position: relative;
+  }
+
+  .ui-table td {
+    border: none !important;
+    padding: 6px 0;
+    white-space: nowrap;
+  }
+
+  .ui-table td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+
+  .ui-table td[data-label="Paciente"]::before,
+  .ui-table td[data-label="Terapeuta"]::before,
+  .ui-table td[data-label="Sala"]::before,
+  .ui-table td[data-label="Estado"]::before,
+  .ui-table td[data-label="Acciones"]::before {
+    display: none;
+  }
+
+  .ui-table td[data-label="Estado"],
+  .ui-table td[data-label="Acciones"] {
+    position: absolute;
+    display: inline-block;
+    width: auto;
+    padding: 0;
+    margin: 0;
+  }
+
+  .ui-table td[data-label="Estado"] .ui-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+  }
+
+  .ui-table td[data-label="Estado"] {
+    top: 12px;
+    right: 60px;
+  }
+
+  .ui-table td[data-label="Acciones"] {
+    top: 8px;
+    right: 12px;
+  }
+
+  .table-scroll {
+    background: transparent;
+    border: none;
+  }
+
+  .appointment-table,
+  .appointment-table thead,
+  .appointment-table tbody,
+  .appointment-table tr,
+  .appointment-table th,
+  .appointment-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .appointment-table thead {
+    display: none;
+  }
+
+  .appointment-table tr {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 12px;
+    padding: 12px;
+    padding-top: 44px;
+    background: var(--panel);
+    position: relative;
+  }
+
+  .appointment-table td {
+    border: none !important;
+    padding: 6px 0;
+    white-space: nowrap;
+  }
+
+  .appointment-table td::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--muted);
+    margin-bottom: 2px;
+  }
+
+  .appointment-table td[data-label="Estado"],
+  .appointment-table td[data-label="Acciones"] {
+    position: absolute;
+    display: inline-block;
+    width: auto;
+    padding: 0;
+    margin: 0;
+  }
+
+  .appointment-table td[data-label="Estado"] .ui-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+  }
+
+  .appointment-table td[data-label="Estado"] {
+    top: 12px;
+    right: 60px;
+  }
+
+  .appointment-table td[data-label="Acciones"] {
+    top: 8px;
+    right: 12px;
+  }
+
+  .appointment-table td[data-label="Estado"]::before,
+  .appointment-table td[data-label="Acciones"]::before {
+    display: none;
+  }
+
   .appointment-table td[data-label="Correo institucional"],
   .appointment-table td[data-label="Correo autorizado"] {
     white-space: normal;

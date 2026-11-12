@@ -1,11 +1,13 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { Suspense } from 'react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
 import type { AgendaView } from '@/components/agenda/agenda-toolbar';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/components/providers/theme-provider';
 
@@ -61,6 +63,11 @@ function AgendaPrintContent() {
   return (
     <main className="agenda-print-page">
       <div className="agenda-print-controls no-print">
+        <Link className="agenda-print-back" href="/agenda">
+          <Button variant="secondary">
+            <ArrowLeft size={18} aria-hidden="true" /> Regresar
+          </Button>
+        </Link>
         <label className="agenda-privacy-toggle">
           <input
             checked={hideNames}
@@ -89,7 +96,7 @@ function AgendaPrintContent() {
             width={44}
           />
           <div>
-            <p className="eyebrow">PsicoGestión · Atención clínica</p>
+            <p className="eyebrow">PsicoGestión - Servicio de Atención Psicológica</p>
             <h1>Agenda de citas</h1>
             <p>
               {view === 'dia'
@@ -129,7 +136,7 @@ function AgendaPrintContent() {
               <tr>
                 <th>Fecha</th>
                 <th>Horario</th>
-                <th>Paciente</th>
+                {!hideNames && <th>Paciente</th>}
                 <th>Terapeuta</th>
                 <th>Sala</th>
                 <th>Folio</th>
@@ -142,7 +149,7 @@ function AgendaPrintContent() {
                   <td>
                     {appointment.hora_inicio}–{appointment.hora_fin}
                   </td>
-                  <td>{hideNames ? 'Paciente reservado' : appointment.paciente.nombre_completo}</td>
+                  {!hideNames && <td>{appointment.paciente.nombre_completo}</td>}
                   <td>{appointment.terapeuta.nombre_completo}</td>
                   <td>{appointment.sala.nombre}</td>
                   <td>{appointment.folio}</td>
@@ -151,9 +158,6 @@ function AgendaPrintContent() {
             </tbody>
           </table>
         )}
-        <footer className="agenda-print-footer">
-          Documento de uso clínico interno · Manejar conforme al aviso de privacidad.
-        </footer>
       </article>
     </main>
   );

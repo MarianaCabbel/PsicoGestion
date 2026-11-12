@@ -301,9 +301,7 @@ export default function PacientesPage() {
       <div className="clinical-page">
         <header className="clinical-heading">
           <div>
-            <p className="eyebrow">Directorio clínico</p>
             <h2>Pacientes</h2>
-            <p className="clinical-subtitle">Consulta y administra los expedientes de pacientes.</p>
           </div>
           <Button
             onClick={() => {

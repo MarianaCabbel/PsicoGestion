@@ -211,9 +211,7 @@ export default function AgendaPage() {
       <main className="clinical-page agenda-page">
         <header className="clinical-heading">
           <div>
-            <p className="eyebrow">PsicoGestión · Agenda clínica</p>
             <h1>Agenda</h1>
-            <p className="module-description">Organización de citas por día, semana y mes.</p>
           </div>
           <div className="clinical-actions">
             <Button
@@ -295,7 +293,7 @@ export default function AgendaPage() {
                     type="button"
                   >
                     <span>{Number(day.fecha.slice(-2))}</span>
-                    <Badge variant={day.total ? 'success' : 'default'}>{day.total} citas</Badge>
+                    {day.total > 0 && <Badge variant="default">{day.total} citas</Badge>}
                   </button>
                 )),
               ];

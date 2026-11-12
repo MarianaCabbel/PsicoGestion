@@ -34,13 +34,18 @@ export function ActionMenu({ label, items }: { label: string; items: ActionMenuI
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
       const estimatedHeight = items.length * 38 + 12;
+      const estimatedWidth = 220;
       const spaceBelow = window.innerHeight - rect.bottom;
+      const top =
+        spaceBelow < estimatedHeight
+          ? Math.max(8, rect.top - estimatedHeight - 6)
+          : rect.bottom + 6;
+      const clampedTop = Math.min(top, window.innerHeight - estimatedHeight - 8);
+      const rawRight = Math.max(8, window.innerWidth - rect.right);
+      const clampedRight = Math.max(8, Math.min(rawRight, window.innerWidth - estimatedWidth - 8));
       setPosition({
-        top:
-          spaceBelow < estimatedHeight
-            ? Math.max(8, rect.top - estimatedHeight - 6)
-            : rect.bottom + 6,
-        right: Math.max(8, window.innerWidth - rect.right),
+        top: clampedTop,
+        right: clampedRight,
       });
     }
     setOpen(true);

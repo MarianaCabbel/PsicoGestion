@@ -364,11 +364,7 @@ export default function TerapeutasPage() {
       <div className="clinical-page">
         <header className="clinical-heading">
           <div>
-            <p className="eyebrow">Directorio clínico</p>
             <h2>Terapeutas</h2>
-            <p className="clinical-subtitle">
-              Administra el equipo, sus perfiles y horarios de atención.
-            </p>
           </div>
           <Button
             onClick={() => {

@@ -60,11 +60,7 @@ export default function PanelPage() {
       <main className="clinical-page dashboard-page">
         <header className="clinical-heading">
           <div>
-            <p className="eyebrow">PsicoGestión · Panel de control</p>
             <h1>Bienvenida/o</h1>
-            <p className="module-description">
-              Resumen operativo de la clínica · {summary?.fecha ?? 'Actualizando…'}
-            </p>
           </div>
           <Link className="ui-button ui-button--primary" href="/agenda">
             Abrir agenda

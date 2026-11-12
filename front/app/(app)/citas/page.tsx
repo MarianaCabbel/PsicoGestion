@@ -235,11 +235,7 @@ function CitasPageContent() {
       <main className="clinical-page">
         <header className="clinical-heading">
           <div>
-            <p className="eyebrow">PsicoGestión · Agenda</p>
             <h1>Citas</h1>
-            <p className="module-description">
-              Agenda, modifica y consulta las notificaciones de confirmación.
-            </p>
           </div>
           <Button onClick={createAppointment}>Agendar cita</Button>
         </header>
