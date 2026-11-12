@@ -13,6 +13,7 @@
     "dev:server": "node --watch src/server.js",
     "dev:client": "npm run dev --workspace front",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build": "npm run build:client",
     "build:client": "npm run build --workspace front",
     "start:server": "node src/server.js",
     "start:client": "npm run start --workspace front",

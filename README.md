@@ -42,6 +42,52 @@ npm run start:client
 
 El backend aplica las migraciones automáticamente al iniciar en desarrollo. En producción, ejecútalas durante el despliegue con `npm run migrate`.
 
+### Despliegue recomendado
+
+Usa tres servicios separados:
+
+1. **Neon:** crea una base PostgreSQL y copia su cadena de conexión (`DATABASE_URL`).
+2. **Render (backend):** conecta el repositorio y configura:
+   - Build Command: `npm install`
+   - Start Command: `npm run start:server`
+   - Health Check Path: `/health/ready`
+3. **Vercel (frontend):** importa el repositorio usando `front` como Root Directory y configura
+   `NEXT_PUBLIC_API_URL` con la URL pública de Render, sin una barra final.
+
+Variables mínimas del backend en Render:
+
+```text
+NODE_ENV=production
+DATABASE_URL=<cadena de Neon>
+DB_DIALECT=postgres
+DB_SSL=true
+JWT_SECRET=<mínimo 32 caracteres aleatorios>
+APP_URL=https://<tu-proyecto>.vercel.app
+CORS_ORIGINS=https://<tu-proyecto>.vercel.app
+SMTP_USER=<usuario SMTP>
+SMTP_PASS=<contraseña o app password SMTP>
+SMTP_FROM=no-reply@<tu-dominio>
+DB_AUTO_MIGRATE=false
+```
+
+Después de configurar las variables, usa `npm run migrate` como Deploy Command de Render
+(antes de iniciar el servicio) o ejecútalo una vez desde un Shell de Render. No configures
+`PORT`: Render lo proporciona automáticamente.
+
+En Vercel configura:
+
+```text
+NEXT_PUBLIC_API_URL=https://<tu-backend>.onrender.com
+```
+
+Como el frontend y el backend viven en dominios distintos, el backend configura la cookie
+de sesión como `SameSite=None; Secure` en producción. No quites `credentials: include` de las
+peticiones del frontend.
+
+El `build` de la raíz compila el workspace del frontend. Para el servicio backend de Render
+se recomienda el Build Command anterior (`npm install`), ya que el backend es JavaScript y
+no necesita compilación.
+
 ## Calidad y pruebas
 
 ```bash
