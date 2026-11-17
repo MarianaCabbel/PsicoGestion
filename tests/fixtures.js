@@ -27,6 +27,7 @@ function datosPaciente(overrides = {}) {
     sexo,
     fecha_nacimiento: fecha,
     telefono: '9991234567',
+    correo: 'maria@correo.com',
     ...overrides,
     ...(overrides.semilla !== undefined ? { semilla: undefined } : {}),
   };
@@ -116,34 +117,63 @@ async function crearSala(nombre = `Sala ${contador + 1}`) {
   return Sala.create({ nombre, nombre_norm: nombre.toLowerCase().replace(/\s+/g, ' ') });
 }
 
-/** Cita insertada directamente (con sus ocupaciones), útil para preparar escenarios. */
-async function insertarCita({ paciente, terapeuta, sala, fecha, hora_inicio = '09:00', duracion_slots = 2, estado = 'pendiente', folio }) {
-  contador += 1;
-  const cita = await Cita.create({
-    folio: folio || `CIT-2026-9${String(contador).padStart(5, '0')}`,
-    paciente_id: paciente.id,
-    terapeuta_id: terapeuta.id,
-    sala_id: sala.id,
-    fecha,
-    hora_inicio,
-    hora_fin: horaFinDe(hora_inicio, duracion_slots),
-    duracion_slots,
-    estado,
+/**
+ * Varias citas insertadas en lote (con sus ocupaciones), útil para preparar
+ * escenarios con muchas citas sin pagar una ida y vuelta a la base por cada una.
+ */
+async function insertarCitas(citas) {
+  const preparadas = citas.map((datos) => {
+    contador += 1;
+    const hora_inicio = datos.hora_inicio || '09:00';
+    const duracion_slots = datos.duracion_slots || 2;
+
+    return {
+      folio: datos.folio || `CIT-2026-9${String(contador).padStart(5, '0')}`,
+      paciente_id: datos.paciente.id,
+      terapeuta_id: datos.terapeuta.id,
+      sala_id: datos.sala.id,
+      fecha: datos.fecha,
+      hora_inicio,
+      hora_fin: horaFinDe(hora_inicio, duracion_slots),
+      duracion_slots,
+      estado: datos.estado || 'pendiente',
+    };
   });
 
-  if (estado === 'pendiente') {
-    await CitaOcupacion.bulkCreate(
-      slotsDeCita(hora_inicio, duracion_slots).map((slot) => ({
-        cita_id: cita.id,
-        fecha,
+  const creadas = await Cita.bulkCreate(preparadas);
+  const filas = await Cita.findAll({
+    where: { folio: preparadas.map((cita) => cita.folio) },
+    attributes: ['id', 'folio'],
+  });
+  const idPorFolio = new Map(filas.map((fila) => [fila.folio, fila.id]));
+
+  const ocupaciones = [];
+  preparadas.forEach((datos, indice) => {
+    creadas[indice].id = idPorFolio.get(datos.folio) ?? creadas[indice].id;
+    if (datos.estado !== 'pendiente') return;
+
+    for (const slot of slotsDeCita(datos.hora_inicio, datos.duracion_slots)) {
+      ocupaciones.push({
+        cita_id: creadas[indice].id,
+        fecha: datos.fecha,
         slot,
-        sala_id: sala.id,
-        terapeuta_id: terapeuta.id,
-        paciente_id: paciente.id,
-      }))
-    );
+        sala_id: datos.sala_id,
+        terapeuta_id: datos.terapeuta_id,
+        paciente_id: datos.paciente_id,
+      });
+    }
+  });
+
+  if (ocupaciones.length > 0) {
+    await CitaOcupacion.bulkCreate(ocupaciones);
   }
 
+  return creadas;
+}
+
+/** Cita insertada directamente (con sus ocupaciones), útil para preparar escenarios. */
+async function insertarCita(datos) {
+  const [cita] = await insertarCitas([datos]);
   return cita;
 }
 
@@ -160,5 +190,6 @@ Object.assign(module.exports, {
   crearTerapeutaConHorario,
   crearSala,
   insertarCita,
+  insertarCitas,
   enMerida,
 });

@@ -299,6 +299,7 @@ function CitasPageContent() {
           </Select>
           <Input
             label="Desde"
+            name="desde"
             onChange={(event) => {
               setFolioMode(false);
               setFromDate(event.target.value);
@@ -309,6 +310,7 @@ function CitasPageContent() {
           />
           <Input
             label="Hasta"
+            name="hasta"
             onChange={(event) => {
               setFolioMode(false);
               setUntilDate(event.target.value);

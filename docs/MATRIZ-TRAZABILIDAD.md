@@ -22,3 +22,26 @@
 | Enlace directo por folio                           | `citas/page.tsx`; `citas-page.test.tsx`                                     | `/citas?folio=` carga el detalle sin listar todas las citas                   | Cumple                        |
 | Refresco inmediato entre vistas                    | `front/lib/citas-events.ts`; `citas/page.tsx`; `agenda/page.tsx`            | Crear o cancelar una cita refresca la agenda en otra pestaña                  | Cumple                        |
 | Humo y rendimiento en navegador                    | `e2e/publico.spec.ts`; `playwright.config.ts`                               | `/login` visible en <1 s local (presupuesto 5 s); 3/3 pruebas públicas        | Cumple                        |
+
+## CP4-INT: agenda, impresión y navegación
+
+Criterios de integración cubiertos en backend (`tests/agenda.cp4.test.js`), frontend (`front/**/*cp4.test.*`) y navegador (`e2e/agenda-cp4.spec.ts`, con datos de `npm run seed:e2e`).
+
+| Criterio CP4-INT                                        | Evidencia                                                                                                                             | Estado |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 01, 03, 15 — vista diaria y fecha solicitada            | Backend 01/03 y 15; frontend `agenda-cp4.test.tsx`; E2E “día, semana y mes”                                                            | Cumple |
+| 02 — agenda vacía sin errores                           | Backend 02; E2E “agenda vacía”                                                                                                        | Cumple |
+| 04 — semana de lunes a domingo                          | Backend 04; frontend 04; E2E navegación de vistas                                                                                     | Cumple |
+| 05, 09 — mes completo y total por día                   | Backend 05/09; frontend 09; E2E “mes indica el total por día”                                                                         | Cumple |
+| 06, 21 — 24 citas en <2 s y render en <3 s              | Backend 06; frontend 06/21; E2E `@perf` de agenda                                                                                     | Cumple |
+| 07, 08, 11, 12, 13 — simultáneas en carriles y detalle  | Backend 07/08; frontend `agenda-layout.test.ts`; E2E “simultáneas en carriles”                                                        | Cumple |
+| 10, 17, 18, 19, 20 — 24 lapsos, ocupación y duración    | Backend 10 y 18/20 y 19; frontend 17/18/19/20; E2E “24 lapsos”                                                                        | Cumple |
+| 14 — cita vencida por color y leyenda                   | Backend 14; frontend `agenda-cp4.test.tsx`; E2E “distingue la cita vencida”                                                           | Cumple |
+| 16 — fechas inválidas o imposibles                      | Backend 16; frontend 16; E2E “rechaza fechas inválidas”                                                                               | Cumple |
+| 22, 25, 26, 27 — impresión diaria, privacidad y <5 s    | Frontend `print-cp4.test.tsx`; E2E “imprime el día”                                                                                   | Cumple |
+| 23, 24 — impresión semanal como listado y mensual       | Frontend `print-cp4.test.tsx`; E2E “imprime la semana y el mes”                                                                       | Cumple |
+| 28 — inicio muestra la agenda y sus indicadores         | Frontend `panel-cp4.test.tsx`; E2E “el inicio muestra la agenda”                                                                      | Cumple |
+| 29, 30, 35 — navegación, sesión y menú móvil            | Frontend `protected-layout.cp4.test.tsx`; E2E “navegación, sesión y menú móvil”                                                       | Cumple |
+| 31, 34 — confirmación al cerrar sesión                  | Frontend `protected-layout.cp4.test.tsx`; E2E “pide confirmación y cierra la sesión”                                                  | Cumple |
+| 32, 33 — filtros por terapeuta y sala                   | Backend “filtra por terapeuta y por sala”; E2E “filtra por terapeuta y por sala”                                                      | Cumple |
+| Cancelar libera el lapso y refresca otras vistas        | Backend “cita cancelada no aparece”; E2E “refresca la agenda al cancelar”                                                              | Cumple |

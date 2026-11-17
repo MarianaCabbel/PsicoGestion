@@ -647,11 +647,64 @@ input:focus {
   min-height: 46px;
 }
 
-.agenda-count {
+.agenda-date-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 9px;
+}
+
+.agenda-date-form .ui-field {
+  min-width: 150px;
+}
+
+.agenda-count-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 18px;
   margin: -8px 2px 0;
+}
+
+.agenda-count {
+  margin: 0;
   color: var(--muted);
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+.agenda-legend {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  list-style: none;
+}
+
+.agenda-legend li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.agenda-legend-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.agenda-legend-dot--pendiente {
+  background: var(--primary);
+}
+
+.agenda-legend-dot--vencida {
+  background: var(--warning);
 }
 
 .agenda-grid {
@@ -717,6 +770,10 @@ input:focus {
   cursor: pointer;
 }
 
+.agenda-slot-hitarea.is-occupied {
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+
 .agenda-slot-hitarea:hover,
 .agenda-slot-hitarea:focus-visible {
   background: color-mix(in srgb, var(--primary) 9%, var(--panel));
@@ -725,19 +782,55 @@ input:focus {
 }
 
 .agenda-appointment {
+  --lane: 0;
+  --lanes: 1;
   z-index: 1;
+  justify-self: start;
+  align-self: stretch;
   display: grid;
   align-content: start;
   gap: 3px;
   overflow: hidden;
-  margin: 2px;
+  width: calc((100% - 6px) / var(--lanes));
+  margin: 2px 0 2px calc(var(--lane) * ((100% - 6px) / var(--lanes)) + 2px);
   border: 1px solid color-mix(in srgb, var(--primary) 35%, transparent);
+  border-left: 4px solid var(--primary);
   border-radius: 8px;
   padding: 5px 7px;
   background: color-mix(in srgb, var(--primary) 13%, var(--panel));
   color: var(--text);
   cursor: pointer;
   text-align: left;
+}
+
+.agenda-appointment--pendiente {
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  border-left-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 13%, var(--panel));
+}
+
+.agenda-appointment--pendiente strong {
+  color: var(--primary);
+}
+
+.agenda-appointment--vencida {
+  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
+  border-left-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 15%, var(--panel));
+}
+
+.agenda-appointment--vencida strong {
+  color: var(--warning);
+}
+
+.agenda-appointment--cancelada {
+  border-color: color-mix(in srgb, var(--error) 45%, transparent);
+  border-left-color: var(--error);
+  background: color-mix(in srgb, var(--error) 12%, var(--panel));
+}
+
+.agenda-appointment--cancelada strong {
+  color: var(--error);
 }
 
 .agenda-appointment strong {
@@ -1014,6 +1107,18 @@ input:focus {
 
 .agenda-print-table th {
   background: #eaf0fa;
+}
+
+.agenda-print-slot.is-occupied td {
+  background: #eef4ff;
+}
+
+.agenda-print-slot.is-free td {
+  color: #46704f;
+}
+
+.agenda-print-slot td div {
+  margin: 2px 0;
 }
 
 .agenda-print-footer {

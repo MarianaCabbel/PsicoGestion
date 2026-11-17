@@ -37,6 +37,25 @@ export function edadEnAnios(fechaNacimiento: string, hoy = hoyEnClinica()) {
   return edad;
 }
 
+/**
+ * Valida una fecha de calendario en formato AAAA-MM-DD. Devuelve el mensaje de
+ * error o `null` si la fecha existe (por ejemplo, rechaza 2026-02-31).
+ */
+export function fechaCalendarioError(value: string, etiqueta = 'La fecha'): string | null {
+  const texto = value.trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(texto)) {
+    return `${etiqueta} debe tener el formato AAAA-MM-DD.`;
+  }
+
+  const date = new Date(`${texto}T00:00:00Z`);
+  if (Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== texto) {
+    return `${etiqueta} no es una fecha válida.`;
+  }
+
+  return null;
+}
+
 function nombrePersona(etiqueta: string) {
   return z
     .string()

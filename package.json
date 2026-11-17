@@ -33,6 +33,7 @@
     "migrate": "node scripts/migrate.js up",
     "migrate:down": "node scripts/migrate.js down",
     "migrate:status": "node scripts/migrate.js status",
+    "seed:e2e": "node scripts/seed-e2e.js",
     "usuarios:autorizar": "node scripts/autorizar-correo.js",
     "usuarios:rol": "node scripts/asignar-rol.js"
   },
