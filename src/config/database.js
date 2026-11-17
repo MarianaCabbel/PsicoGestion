@@ -42,6 +42,18 @@ function buildSequelize() {
     });
   }
 
+  if (dialect === 'postgres' && process.env.DATABASE_URL) {
+    return new Sequelize(process.env.DATABASE_URL, {
+      dialect: 'postgres',
+      logging: false,
+      define: sharedDefine,
+      dialectOptions:
+        process.env.DB_SSL === 'true' || process.env.DATABASE_URL.includes('sslmode=require')
+          ? { ssl: { require: true, rejectUnauthorized: false } }
+          : {},
+    });
+  }
+
   return new Sequelize(
     process.env.DB_NAME || 'psicogestion',
     process.env.DB_USER || 'root',

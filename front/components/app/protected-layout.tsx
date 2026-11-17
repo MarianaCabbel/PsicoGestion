@@ -27,6 +27,7 @@ import { PrivacyFooter } from '@/components/app/privacy-footer';
 import { useSession } from '@/components/providers/session-provider';
 import { useTheme } from '@/components/providers/theme-provider';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const navigation: { href: string; label: string; icon: LucideIcon; adminOnly?: boolean }[] = [
@@ -57,6 +58,7 @@ export function ProtectedLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -163,7 +165,7 @@ export function ProtectedLayout({ children }: { children: ReactNode }) {
           )}
           <Button
             disabled={loggingOut}
-            onClick={() => void handleLogout()}
+            onClick={() => setConfirmingLogout(true)}
             variant="ghost"
             aria-label="Cerrar sesión"
             className="workspace-logout"
@@ -215,6 +217,17 @@ export function ProtectedLayout({ children }: { children: ReactNode }) {
         <main className="workspace-content">{children}</main>
         <PrivacyFooter />
       </div>
+      <ConfirmDialog
+        busy={loggingOut}
+        confirmLabel="Cerrar sesión"
+        description="¿Seguro que quieres cerrar la sesión?"
+        onConfirm={() => void handleLogout()}
+        onOpenChange={(open) => {
+          if (!open && !loggingOut) setConfirmingLogout(false);
+        }}
+        open={confirmingLogout}
+        title="Cerrar sesión"
+      />
     </div>
   );
 }

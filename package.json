@@ -13,6 +13,7 @@
     "dev:server": "node --watch src/server.js",
     "dev:client": "npm run dev --workspace front",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build": "npm run build:client",
     "build:client": "npm run build --workspace front",
     "start:server": "node src/server.js",
     "start:client": "npm run start --workspace front",
@@ -32,6 +33,7 @@
     "migrate": "node scripts/migrate.js up",
     "migrate:down": "node scripts/migrate.js down",
     "migrate:status": "node scripts/migrate.js status",
+    "seed:e2e": "node scripts/seed-e2e.js",
     "usuarios:autorizar": "node scripts/autorizar-correo.js",
     "usuarios:rol": "node scripts/asignar-rol.js"
   },

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AppointmentWizard,
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
+import { assignLanes, type LaneAssignment, slotIndex, slotLabel } from '@/lib/agenda-layout';
 import { escucharCambiosDeCitas } from '@/lib/citas-events';
 
 type Appointment = {
@@ -57,14 +58,6 @@ const weekStart = (date: string) => {
   const offset = (value.getDay() + 6) % 7;
   value.setDate(value.getDate() - offset);
   return dateString(value);
-};
-const slotIndex = (time: string) => {
-  const [hour, minute] = time.split(':').map(Number);
-  return (hour * 60 + minute - 7 * 60) / 30;
-};
-const slotLabel = (index: number) => {
-  const minutes = 7 * 60 + index * 30;
-  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 };
 
 export default function AgendaPage() {
@@ -161,6 +154,13 @@ export default function AgendaPage() {
     });
     return grouped;
   }, [citas]);
+  const lanesByDay = useMemo(() => {
+    const grouped = new Map<string, Map<number, LaneAssignment>>();
+    appointmentsByDay.forEach((dayAppointments, day) => {
+      grouped.set(day, assignLanes(dayAppointments));
+    });
+    return grouped;
+  }, [appointmentsByDay]);
   const totalEnVista =
     view === 'mes'
       ? (agenda?.dias ?? []).reduce((total, day) => total + day.total, 0)
@@ -252,9 +252,23 @@ export default function AgendaPage() {
           therapists={therapists}
           view={view}
         />
-        <p className="agenda-count" aria-live="polite">
-          {totalEnVista} {totalEnVista === 1 ? 'cita' : 'citas'} en la vista seleccionada
-        </p>
+        <div className="agenda-count-row">
+          <p className="agenda-count" aria-live="polite">
+            {totalEnVista} {totalEnVista === 1 ? 'cita' : 'citas'} en la vista seleccionada
+          </p>
+          {view !== 'mes' && (
+            <ul className="agenda-legend" aria-label="Estados de las citas">
+              <li>
+                <span aria-hidden="true" className="agenda-legend-dot agenda-legend-dot--pendiente" />
+                Pendiente
+              </li>
+              <li>
+                <span aria-hidden="true" className="agenda-legend-dot agenda-legend-dot--vencida" />
+                Vencida
+              </li>
+            </ul>
+          )}
+        </div>
         {error && (
           <p className="alert error" role="alert">
             {error}
@@ -330,7 +344,7 @@ export default function AgendaPage() {
                 return (
                   <button
                     aria-label={`${day} ${slotLabel(slot)} ${isOccupied ? 'cita ocupada' : 'horario libre'}`}
-                    className="agenda-slot-hitarea"
+                    className={`agenda-slot-hitarea ${isOccupied ? 'is-occupied' : 'is-free'}`}
                     key={`${day}-${slot}`}
                     onClick={() => openSlot(day, slot)}
                     style={{ gridColumn: dayIndex + 2, gridRow: slot + 2 }}
@@ -343,16 +357,27 @@ export default function AgendaPage() {
               (appointmentsByDay.get(day) ?? []).map((appointment) => {
                 const dayColumn = days.indexOf(appointment.fecha) + 2;
                 const startRow = slotIndex(appointment.hora_inicio) + 2;
+                const lanes = lanesByDay.get(appointment.fecha)?.get(appointment.id) ?? {
+                  lane: 0,
+                  totalLanes: 1,
+                };
                 return (
                   <button
-                    aria-label={`Cita ${appointment.folio}, ${appointment.paciente.nombre_completo}, ${appointment.terapeuta.nombre_completo}`}
-                    className="agenda-appointment"
+                    aria-label={`Cita ${appointment.folio}, ${appointment.paciente.nombre_completo}, ${appointment.terapeuta.nombre_completo}, ${appointment.sala.nombre}, ${appointment.estado}`}
+                    className={`agenda-appointment agenda-appointment--${appointment.estado}`}
+                    data-estado={appointment.estado}
+                    data-lane={lanes.lane}
+                    data-lanes={lanes.totalLanes}
                     key={appointment.id}
                     onClick={() => openAppointment(appointment)}
-                    style={{
-                      gridColumn: dayColumn,
-                      gridRow: `${startRow} / span ${appointment.duracion_slots}`,
-                    }}
+                    style={
+                      {
+                        '--lane': lanes.lane,
+                        '--lanes': lanes.totalLanes,
+                        gridColumn: dayColumn,
+                        gridRow: `${startRow} / span ${appointment.duracion_slots}`,
+                      } as CSSProperties
+                    }
                     type="button"
                   >
                     <strong>

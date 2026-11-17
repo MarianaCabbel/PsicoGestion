@@ -10,6 +10,8 @@ import type { AgendaView } from '@/components/agenda/agenda-toolbar';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/components/providers/theme-provider';
+import { buildDaySlots } from '@/lib/agenda-layout';
+import { hoyEnClinica } from '@/lib/clinical-validation';
 
 type PrintAppointment = {
   folio: string;
@@ -34,7 +36,7 @@ function AgendaPrintContent() {
   const { theme } = useTheme();
   const params = useSearchParams();
   const view = (params.get('vista') ?? 'dia') as AgendaView;
-  const date = params.get('fecha') ?? new Date().toISOString().slice(0, 10);
+  const date = params.get('fecha') ?? hoyEnClinica();
   const [hideNames, setHideNames] = useState(true);
   const [agenda, setAgenda] = useState<PrintAgenda | null>(null);
   const [error, setError] = useState('');
@@ -59,6 +61,7 @@ function AgendaPrintContent() {
       ? agenda.desde
       : `${agenda.desde} — ${agenda.hasta}`
     : date;
+  const daySlots = view === 'dia' && agenda ? buildDaySlots(agenda.citas ?? []) : [];
 
   return (
     <main className="agenda-print-page">
@@ -126,6 +129,46 @@ function AgendaPrintContent() {
                   <td>{day.fecha}</td>
                   <td>{day.dia_atencion ? 'Sí' : 'No'}</td>
                   <td>{day.total}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : view === 'dia' ? (
+          <table className="agenda-print-table agenda-print-day">
+            <thead>
+              <tr>
+                <th>Horario</th>
+                <th>Estado</th>
+                <th>Citas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {daySlots.map((slot) => (
+                <tr
+                  className={slot.occupied ? 'agenda-print-slot is-occupied' : 'agenda-print-slot is-free'}
+                  data-estado={slot.occupied ? 'ocupado' : 'libre'}
+                  key={slot.slot}
+                >
+                  <td>
+                    {slot.label}–{slot.endLabel}
+                  </td>
+                  <td>{slot.occupied ? 'Ocupado' : 'Libre'}</td>
+                  <td>
+                    {slot.appointments.length === 0 ? (
+                      <span aria-label="Sin citas">—</span>
+                    ) : (
+                      slot.appointments.map((appointment) => (
+                        <div key={appointment.folio}>
+                          <strong>
+                            {appointment.hora_inicio}–{appointment.hora_fin}
+                          </strong>
+                          {!hideNames && <> · {appointment.paciente.nombre_completo}</>} ·{' '}
+                          {appointment.terapeuta.nombre_completo} · {appointment.sala.nombre} ·{' '}
+                          {appointment.folio}
+                        </div>
+                      ))
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

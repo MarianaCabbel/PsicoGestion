@@ -31,7 +31,7 @@ describe('Módulo de pacientes', () => {
         sexo: 'H',
         telefono: '9991234567',
         estado: 'activo',
-        correo: null,
+        correo: 'maria@correo.com',
       });
       expect(res.body.data.edad).toBeGreaterThanOrEqual(36);
       expect(res.body.data.id).toBeTruthy();
