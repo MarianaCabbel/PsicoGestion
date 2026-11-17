@@ -577,6 +577,17 @@ input:focus {
   padding-left: 14px;
 }
 
+.privacy-view {
+  border-radius: 12px;
+  outline: none;
+}
+
+.privacy-view .privacy-content {
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
 .admin-access-section {
   display: grid;
   gap: 14px;
@@ -3084,9 +3095,14 @@ html[data-theme='dark'] .primary-action {
   margin-top: 21px;
 }
 
-.clinical-form {
+.clinical-form,
+.clinical-form-fields {
   display: grid;
   gap: 17px;
+}
+
+.clinical-form-fields[hidden] {
+  display: none;
 }
 
 .clinical-form-grid,
