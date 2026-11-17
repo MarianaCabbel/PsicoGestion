@@ -146,7 +146,9 @@ export function curpError(value: string) {
 
 export const patientSchema = z
   .object({
-    nombre_completo: nombrePersona('El nombre completo'),
+    nombre: nombrePersona('El nombre'),
+    apellido_paterno: nombrePersona('El apellido paterno'),
+    apellido_materno: nombrePersona('El apellido materno'),
     curp: z
       .string()
       .transform(normalizeCurp)
@@ -160,14 +162,11 @@ export const patientSchema = z
       .transform((value) => value.replace(/\D/g, ''))
       .pipe(z.string().regex(/^\d{10}$/, 'El teléfono debe tener 10 dígitos.')),
     correo: z
-      .union([
-        z.literal(''),
-        z
-          .string()
-          .trim()
-          .max(150, 'El correo no puede exceder 150 caracteres.')
-          .pipe(z.email('El correo electrónico no es válido.')),
-      ])
+      .string()
+      .trim()
+      .min(1, 'El correo es obligatorio.')
+      .max(150, 'El correo no puede exceder 150 caracteres.')
+      .pipe(z.email('El correo electrónico no es válido.'))
       .transform((value) => value.toLowerCase()),
     acepta_aviso: z.boolean(),
   })
@@ -199,7 +198,28 @@ export const patientSchema = z
         message: 'El sexo no coincide con la CURP.',
       });
     }
-  });
+    const nombreCompleto = `${values.nombre} ${values.apellido_paterno} ${values.apellido_materno}`
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (nombreCompleto.length > NOMBRE_MAXIMO) {
+      context.addIssue({
+        code: 'custom',
+        path: ['nombre'],
+        message: `El nombre completo no puede exceder ${NOMBRE_MAXIMO} caracteres.`,
+      });
+    }
+  })
+  .transform((values) => ({
+    nombre_completo: `${values.nombre} ${values.apellido_paterno} ${values.apellido_materno}`
+      .replace(/\s+/g, ' ')
+      .trim(),
+    curp: values.curp,
+    sexo: values.sexo,
+    fecha_nacimiento: values.fecha_nacimiento,
+    telefono: values.telefono,
+    correo: values.correo,
+    acepta_aviso: values.acepta_aviso,
+  }));
 
 export type PatientFormValues = z.input<typeof patientSchema>;
 export type PatientPayload = z.output<typeof patientSchema>;

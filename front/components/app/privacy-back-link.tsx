@@ -11,23 +11,19 @@ import { useSession } from '@/components/providers/session-provider';
 export function PrivacyBackLink() {
   try {
     const { status } = useSession();
-    const authenticated = status === 'authenticated';
 
     return (
       <Link
         className="ui-button ui-button--secondary ui-button--md"
-        href={authenticated ? '/panel' : '/login'}
+        href={status === 'authenticated' ? '/panel' : '/login'}
       >
-        {authenticated ? 'Volver al panel' : 'Volver al acceso'}
+        {status === 'authenticated' ? 'Volver al panel' : 'Volver al acceso'}
       </Link>
     );
   } catch {
     // Fallback cuando no hay SessionProvider (tests, SSR, etc.)
     return (
-      <Link
-        className="ui-button ui-button--secondary ui-button--md"
-        href="/login"
-      >
+      <Link className="ui-button ui-button--secondary ui-button--md" href="/login">
         Volver al acceso
       </Link>
     );

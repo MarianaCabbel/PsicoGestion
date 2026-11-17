@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { api } from '@/lib/api';
 import type { PatientPayload } from '@/lib/clinical-validation';
+import { PRIVACY_NOTICE_VERSION } from '@/lib/privacy';
 
 type PageResult<T> = {
   items: T[];
@@ -46,6 +47,8 @@ export default function PacientesPage() {
   const [error, setError] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PatientRecord | null>(null);
+  const [formSession, setFormSession] = useState(0);
+  const [privacyViewOpen, setPrivacyViewOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PatientAction | null>(null);
   const [arcoPatient, setArcoPatient] = useState<ArcoPatient | null>(null);
   const [anonymizationPhrase, setAnonymizationPhrase] = useState('');
@@ -273,6 +276,8 @@ export default function PacientesPage() {
               label: 'Editar',
               onSelect: () => {
                 setEditing(patient);
+                setFormSession((value) => value + 1);
+                setPrivacyViewOpen(false);
                 setFormOpen(true);
               },
             },
@@ -306,6 +311,8 @@ export default function PacientesPage() {
           <Button
             onClick={() => {
               setEditing(null);
+              setFormSession((value) => value + 1);
+              setPrivacyViewOpen(false);
               setFormOpen(true);
             }}
           >
@@ -378,24 +385,38 @@ export default function PacientesPage() {
 
       <Dialog
         description={
-          editing
-            ? 'Actualiza los datos personales del expediente.'
-            : 'Completa los datos y registra el consentimiento del aviso de privacidad.'
+          privacyViewOpen
+            ? 'Consulta el aviso vigente antes de aceptar el tratamiento de datos personales.'
+            : editing
+              ? 'Actualiza los datos personales del expediente.'
+              : 'Completa los datos y registra el consentimiento del aviso de privacidad.'
         }
         onOpenChange={(open) => {
           setFormOpen(open);
-          if (!open) setEditing(null);
+          if (!open) {
+            setEditing(null);
+            setPrivacyViewOpen(false);
+          }
         }}
         open={formOpen}
         size="lg"
-        title={editing ? 'Editar paciente' : 'Nuevo paciente'}
+        title={
+          privacyViewOpen
+            ? `Aviso de privacidad ${PRIVACY_NOTICE_VERSION}`
+            : editing
+              ? 'Editar paciente'
+              : 'Nuevo paciente'
+        }
       >
         <PatientForm
+          key={formSession}
           busy={saving}
           onCancel={() => {
             setFormOpen(false);
             setEditing(null);
+            setPrivacyViewOpen(false);
           }}
+          onPrivacyViewChange={setPrivacyViewOpen}
           onSave={savePatient}
           patient={editing}
         />

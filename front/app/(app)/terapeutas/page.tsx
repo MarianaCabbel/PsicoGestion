@@ -120,6 +120,7 @@ export default function TerapeutasPage() {
   const [error, setError] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<TherapistRecord | null>(null);
+  const [formSession, setFormSession] = useState(0);
   const [pendingSchedule, setPendingSchedule] = useState<PendingSchedule | null>(null);
   const [pendingAction, setPendingAction] = useState<TherapistAction | null>(null);
 
@@ -159,6 +160,7 @@ export default function TerapeutasPage() {
     try {
       const response = await api<TherapistRecord>(`/api/terapeutas/${therapist.id}`);
       setEditing(response.data);
+      setFormSession((value) => value + 1);
       setFormOpen(true);
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'No se pudo cargar el perfil.');
@@ -369,6 +371,7 @@ export default function TerapeutasPage() {
           <Button
             onClick={() => {
               setEditing(null);
+              setFormSession((value) => value + 1);
               setFormOpen(true);
             }}
           >
@@ -459,7 +462,7 @@ export default function TerapeutasPage() {
       >
         <TherapistForm
           busy={saving}
-          key={editing?.id ?? 'new'}
+          key={formSession}
           onCancel={() => {
             setFormOpen(false);
             setEditing(null);

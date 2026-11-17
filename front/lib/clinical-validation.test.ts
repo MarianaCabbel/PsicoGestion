@@ -29,9 +29,8 @@ function mensajesDeFecha(resultado: ReturnType<typeof therapistSchema.safeParse>
 }
 
 function validCurp() {
-  const consonants = [0, 7, 14].map((index) => alphabet[index % alphabet.length]).join('');
-  const base = `AEAG900427HYN${consonants}0`;
-  return `${base}${curpCheckDigit(base)}`;
+  const curp = 'AEAG900427HYN' + [0, 7, 14].map((index) => alphabet[index % alphabet.length]).join('') + '0';
+  return `${curp}${curpCheckDigit(curp)}`;
 }
 
 describe('clinical validation', () => {
@@ -46,12 +45,14 @@ describe('clinical validation', () => {
 
   it('requires privacy consent and matches its encoded sex and date', () => {
     const base = {
-      nombre_completo: 'María Pérez',
+      nombre: 'María',
+      apellido_paterno: 'Pérez',
+      apellido_materno: 'López',
       curp: validCurp(),
       sexo: 'H' as const,
       fecha_nacimiento: '1990-04-27',
       telefono: '9991234567',
-      correo: '',
+      correo: 'ana@uady.mx',
     };
     expect(patientSchema.safeParse({ ...base, acepta_aviso: false }).success).toBe(false);
     expect(patientSchema.safeParse({ ...base, acepta_aviso: true }).success).toBe(true);
@@ -125,11 +126,13 @@ describe('clinical validation', () => {
 
   it('requires patients to be at least 7 years old and not born in the future', () => {
     const base = {
-      nombre_completo: 'María Pérez',
+      nombre: 'María',
+      apellido_paterno: 'Pérez',
+      apellido_materno: 'López',
       curp: validCurp(),
       sexo: 'H' as const,
       telefono: '9991234567',
-      correo: '',
+      correo: 'ana@uady.mx',
       acepta_aviso: true,
     };
     const mensajes = (fecha_nacimiento: string) => {

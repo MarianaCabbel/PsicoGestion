@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { PatientForm } from './patient-form';
@@ -19,7 +19,9 @@ describe('PatientForm', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<PatientForm patient={null} onCancel={vi.fn()} onSave={onSave} />);
 
-    await user.type(screen.getByLabelText('Nombre completo'), 'María Pérez');
+    await user.type(screen.getByLabelText('Nombre'), 'María');
+    await user.type(screen.getByLabelText('Apellido paterno'), 'Pérez');
+    await user.type(screen.getByLabelText('Apellido materno'), 'López');
     fireEvent.change(screen.getByLabelText('CURP'), { target: { value: validCurp() } });
 
     await waitFor(() => {
@@ -27,6 +29,7 @@ describe('PatientForm', () => {
       expect(screen.getByLabelText('Sexo')).toHaveValue('H');
     });
     await user.type(screen.getByLabelText('Teléfono'), '9991234567');
+    await user.type(screen.getByLabelText('Correo electrónico'), 'ana@uady.mx');
 
     const submit = screen.getByRole('button', { name: 'Registrar paciente' });
     expect(submit).toBeDisabled();
@@ -43,5 +46,39 @@ describe('PatientForm', () => {
       fecha_nacimiento: '1990-04-27',
       acepta_aviso: true,
     });
+  });
+
+  it('abre el aviso de privacidad en el mismo formulario y vuelve conservando los datos', async () => {
+    const user = userEvent.setup();
+    render(<PatientForm patient={null} onCancel={vi.fn()} onSave={vi.fn()} />);
+
+    await user.type(screen.getByLabelText('Nombre'), 'María');
+    await user.type(screen.getByLabelText('Apellido paterno'), 'Pérez');
+    await user.type(screen.getByLabelText('Teléfono'), '9991234567');
+
+    await user.click(screen.getByRole('link', { name: /aviso de privacidad/i }));
+
+    const privacySection = await screen.findByRole('region', {
+      name: /aviso de privacidad v1\.0/i,
+    });
+    expect(privacySection).toBeVisible();
+    expect(
+      within(privacySection).getByRole('heading', {
+        name: 'Derechos ARCO y revocación del consentimiento',
+      }),
+    ).toBeVisible();
+
+    await user.click(
+      within(privacySection).getByRole('button', { name: 'Volver al registro de paciente' }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('region', { name: /aviso de privacidad v1\.0/i }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText('Nombre')).toHaveValue('María');
+    expect(screen.getByLabelText('Apellido paterno')).toHaveValue('Pérez');
+    expect(screen.getByLabelText('Teléfono')).toHaveValue('9991234567');
   });
 });
