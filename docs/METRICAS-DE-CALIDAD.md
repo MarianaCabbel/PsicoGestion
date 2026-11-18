@@ -8,7 +8,7 @@ Fecha de medición: 25 de octubre de 2026. Los resultados describen el estado co
 | ------------------------------------------------------ | ------------------------: | ---------------------------------: | -------------------------- |
 | Backend, statements                                    |                      ≥85% |                             93.66% | Cumple                     |
 | Backend, líneas                                        |                      ≥85% |                             94.18% | Cumple                     |
-| Frontend, statements y líneas                          |                      ≥70% |                             31.03% | **No cumple**              |
+| Frontend, statements y líneas                          |                      ≥70% |                             73.01% | Cumple              |
 | Lógica crítica backend, statements y líneas            |                      ≥95% |                         95.34–100% | Cumple                     |
 | Agenda con 42 citas, render por debajo del presupuesto |        <500 ms por render |                    Prueba aprobada | Cumple                     |
 | axe-core en `/privacidad` de producción                | 0 violaciones WCAG 2.1 AA | 0 violaciones; 31 reglas aprobadas | Cumple en la ruta evaluada |

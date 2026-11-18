@@ -115,6 +115,8 @@ npm run test:pg
 
 `test:pg` falla explícitamente si `TEST_DATABASE_URL` no está configurada; no cambia ni elimina datos fuera de la base que proporciones.
 
+La documentación de pruebas está organizada por iteración en [docs/pruebas/README.md](docs/pruebas/README.md).
+
 ## Funcionalidades actuales
 
 - Registro, verificación de correo, inicio/cierre de sesión y recuperación de contraseña.
@@ -137,6 +139,7 @@ migrations/           Migraciones de base de datos
 scripts/              Herramientas de desarrollo y migraciones
 front/                Frontend Next.js (workspace npm)
 docs/                 Progreso, bloqueos, riesgos y decisiones
+docs/pruebas/         Documentación de pruebas por iteración
 ```
 
 La estructura del monorepo y la elección de npm se documentan en [docs/ADR/0001-estructura-monorepo.md](docs/ADR/0001-estructura-monorepo.md).
