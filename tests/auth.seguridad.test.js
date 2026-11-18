@@ -8,7 +8,13 @@ const {
   isInstitutionalEmail,
   MAX_VERIFICATION_ATTEMPTS,
 } = require('../src/utils/authHelpers');
-const { getJwtSecret, getRegistroModo, assertEnvironment, getAllowedOrigins } = require('../src/config/env');
+const {
+  getJwtSecret,
+  getRegistroModo,
+  assertEnvironment,
+  getAllowedOrigins,
+  isAllowedOrigin,
+} = require('../src/config/env');
 const { parseCookies } = require('../src/lib/cookies');
 const {
   VALID_EMAIL,
@@ -351,6 +357,30 @@ describe('Sesión por cookie httpOnly, CORS y cabeceras', () => {
     expect(ajeno.headers['access-control-allow-origin']).toBeUndefined();
   });
 
+  test('CP-INT-77 un preview con hash de Vercel usa CORS y pasa el guardián de origen', async () => {
+    await conEntorno(
+      {
+        NODE_ENV: 'production',
+        APP_URL: 'https://psicogestionuady.vercel.app',
+        CORS_ORIGINS: undefined,
+        CORS_ORIGIN_PATTERNS: 'https://psicogestionuady-*-cris-projects-726faae0.vercel.app',
+      },
+      async () => {
+        const origin = 'https://psicogestionuady-abc123-cris-projects-726faae0.vercel.app';
+
+        const permitido = await request(app).get('/health').set('Origin', origin);
+        expect(permitido.headers['access-control-allow-origin']).toBe(origin);
+        expect(permitido.headers['access-control-allow-credentials']).toBe('true');
+
+        const rechazado = await request(app)
+          .post('/api/auth/logout')
+          .set('Origin', 'https://otro-proyecto-abc123-cris-projects-726faae0.vercel.app');
+        expect(rechazado.status).toBe(403);
+        expect(rechazado.body.message).toBe('Origen no autorizado.');
+      }
+    );
+  });
+
   test('CP-INT-77 envía cabeceras de seguridad y no revela Express', async () => {
     const res = await request(app).get('/health');
 
@@ -447,6 +477,48 @@ describe('Configuración de entorno', () => {
       { NODE_ENV: 'production', APP_URL: 'https://app.example.mx/ruta', CORS_ORIGINS: 'https://otro.example.mx, ' },
       () => {
         expect(getAllowedOrigins().sort()).toEqual(['https://app.example.mx', 'https://otro.example.mx']);
+      }
+    );
+  });
+
+  test('CP-UNI-34 los patrones acotados aceptan previews de Vercel pero no dominios ajenos', () => {
+    const base = {
+      NODE_ENV: 'production',
+      APP_URL: 'https://psicogestionuady.vercel.app',
+      CORS_ORIGINS: undefined,
+      CORS_ORIGIN_PATTERNS: 'https://psicogestionuady-*-cris-projects-726faae0.vercel.app',
+    };
+
+    conEntorno(base, () => {
+      expect(isAllowedOrigin('https://psicogestionuady-abc123-cris-projects-726faae0.vercel.app')).toBe(true);
+      expect(isAllowedOrigin('https://psicogestionuady.vercel.app')).toBe(true);
+      expect(isAllowedOrigin('https://otro-abc123-cris-projects-726faae0.vercel.app')).toBe(false);
+      expect(isAllowedOrigin('https://psicogestionuady-abc123-otro-equipo.vercel.app')).toBe(false);
+      expect(isAllowedOrigin('https://psicogestionuady-abc123-cris-projects-726faae0.vercel.app.mx')).toBe(false);
+      expect(isAllowedOrigin('https://psicogestionuady-abc123-cris-projects-726faae0.vercel.app.evil.com')).toBe(false);
+      expect(isAllowedOrigin('https://psicogestionuady-abc123-cris-projects-726faae0-vercel.app')).toBe(false);
+      expect(isAllowedOrigin(undefined)).toBe(false);
+    });
+
+    conEntorno({ ...base, CORS_ORIGIN_PATTERNS: undefined }, () => {
+      expect(isAllowedOrigin('https://psicogestionuady-abc123-cris-projects-726faae0.vercel.app')).toBe(false);
+    });
+  });
+
+  test('CP-UNI-34 el comodín no cruza puntos y se aceptan varios patrones', () => {
+    conEntorno(
+      {
+        NODE_ENV: 'production',
+        APP_URL: 'https://app.example.mx',
+        CORS_ORIGINS: undefined,
+        CORS_ORIGIN_PATTERNS:
+          'https://psicogestionuady-*-cris-projects-726faae0.vercel.app, https://otro-*.example.mx',
+      },
+      () => {
+        expect(isAllowedOrigin('https://psicogestionuady-abc123-cris-projects-726faae0.vercel.app')).toBe(true);
+        expect(isAllowedOrigin('https://otro-preview.example.mx')).toBe(true);
+        expect(isAllowedOrigin('https://otro.preview.example.mx')).toBe(false);
+        expect(isAllowedOrigin('https://otro-preview.evil.example.mx')).toBe(false);
       }
     );
   });

@@ -13,7 +13,7 @@ const adminRoutes = require('./modules/admin/admin.routes');
 const { registrarGuardsDeCitas } = require('./modules/citas/citas.guards');
 const { errorHandler, AppError } = require('./utils/errors');
 const { sequelize } = require('./config/database');
-const { getAllowedOrigins, getTrustProxy } = require('./config/env');
+const { isAllowedOrigin, getTrustProxy } = require('./config/env');
 const { limitadores } = require('./middleware/rateLimiters');
 const { originGuard } = require('./middleware/originGuard');
 
@@ -30,7 +30,7 @@ app.use(
   cors({
     origin: (origin, callback) => {
       // Sin cabecera Origin (curl, mismo origen, pruebas) no hay CORS que aplicar.
-      if (!origin || getAllowedOrigins().includes(origin)) {
+      if (!origin || isAllowedOrigin(origin)) {
         return callback(null, true);
       }
       return callback(null, false);

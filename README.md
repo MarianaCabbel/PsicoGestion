@@ -64,11 +64,17 @@ DB_SSL=true
 JWT_SECRET=<mínimo 32 caracteres aleatorios>
 APP_URL=https://<tu-proyecto>.vercel.app
 CORS_ORIGINS=https://<tu-proyecto>.vercel.app
+CORS_ORIGIN_PATTERNS=https://<tu-proyecto>-*-<tu-equipo>.vercel.app
 SMTP_USER=<usuario SMTP>
 SMTP_PASS=<contraseña o app password SMTP>
 SMTP_FROM=no-reply@<tu-dominio>
 DB_AUTO_MIGRATE=false
 ```
+
+`CORS_ORIGIN_PATTERNS` es opcional. Autoriza los previews de Vercel, cuyo hash cambia en cada
+deploy; el `*` solo coincide con caracteres de hostname. Mantenlo acotado al prefijo de tu
+proyecto: `https://*.vercel.app` permitiría a cualquier proyecto de Vercel enviar peticiones con
+credenciales a tu backend.
 
 Después de configurar las variables, usa `npm run migrate` como Deploy Command de Render
 (antes de iniciar el servicio) o ejecútalo una vez desde un Shell de Render. No configures

@@ -1,5 +1,5 @@
 const { AppError } = require('../utils/errors');
-const { getAllowedOrigins } = require('../config/env');
+const { isAllowedOrigin } = require('../config/env');
 
 const METODOS_SEGUROS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
@@ -16,7 +16,7 @@ function originGuard(req, res, next) {
   if (!origin) return next();
 
   const host = `${req.protocol}://${req.get('host')}`;
-  if (origin === host || getAllowedOrigins().includes(origin)) return next();
+  if (origin === host || isAllowedOrigin(origin)) return next();
 
   return next(new AppError('Origen no autorizado.', 403));
 }

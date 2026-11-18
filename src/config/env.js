@@ -49,6 +49,32 @@ function getAllowedOrigins() {
 }
 
 /**
+ * Convierte un patrón de origen con comodín `*` en una expresión anclada.
+ * El comodín solo admite caracteres válidos en un hostname, para que un patrón
+ * acotado a un proyecto no pueda terminar aceptando dominios ajenos.
+ */
+function patronComoExpresion(patron) {
+  const escapado = String(patron).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${escapado.replace(/\\\*/g, '[a-z0-9-]*')}$`, 'i');
+}
+
+/**
+ * Patrones de origen para despliegues con URL variable (por ejemplo los
+ * previews de Vercel, cuyo hash cambia en cada deploy). Se configuran en
+ * CORS_ORIGIN_PATTERNS, separados por coma.
+ */
+function getAllowedOriginPatterns() {
+  return splitList(process.env.CORS_ORIGIN_PATTERNS).map(patronComoExpresion);
+}
+
+/** Comprueba un origen contra la lista exacta y contra los patrones configurados. */
+function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  if (getAllowedOrigins().includes(origin)) return true;
+  return getAllowedOriginPatterns().some((patron) => patron.test(origin));
+}
+
+/**
  * Política de registro de cuentas:
  *  - "lista_blanca": solo correos dados de alta en correos_autorizados (producción).
  *  - "dominio": basta con un correo institucional válido (desarrollo y pruebas).
@@ -94,6 +120,8 @@ module.exports = {
   isProduction,
   getJwtSecret,
   getAllowedOrigins,
+  getAllowedOriginPatterns,
+  isAllowedOrigin,
   getRegistroModo,
   getExtraInstitutionalDomains,
   getTrustProxy,
