@@ -65,13 +65,17 @@ JWT_SECRET=<mínimo 32 caracteres aleatorios>
 APP_URL=https://<tu-proyecto>.vercel.app
 CORS_ORIGINS=https://<tu-proyecto>.vercel.app
 CORS_ORIGIN_PATTERNS=https://<tu-proyecto>-*-<tu-equipo>.vercel.app
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=<usuario SMTP>
-SMTP_PASS=<contraseña o app password SMTP>
-SMTP_FROM=<mismo correo del usuario SMTP o un alias autorizado>
+EMAIL_TRANSPORT=api
+BREVO_API_KEY=<clave de API de Brevo con permiso "Emails transaccionales: Todos">
+EMAIL_FROM=<correo verificado en Brevo>
+EMAIL_FROM_NAME=PsicoGestión
 DB_AUTO_MIGRATE=false
 ```
+
+`EMAIL_TRANSPORT=api` envía por la **API HTTPS de Brevo** (`https://api.brevo.com/v3/smtp/email`,
+puerto 443). Es obligatorio en Render free: los puertos SMTP salientes 25/465/587 están
+bloqueados. En desarrollo puedes usar `EMAIL_TRANSPORT=smtp` con `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_USER`, `SMTP_PASS` y `SMTP_FROM` (consulta `.env.example`).
 
 `CORS_ORIGIN_PATTERNS` es opcional. Autoriza los previews de Vercel, cuyo hash cambia en cada
 deploy; el `*` solo coincide con caracteres de hostname. Mantenlo acotado al prefijo de tu
@@ -94,17 +98,31 @@ peticiones del frontend.
 
 ### Si no llegan los correos en producción
 
-El registro espera como máximo ~10 s al SMTP; si el envío falla, la cuenta se revierte y el
-usuario recibe un mensaje para reintentar. En los logs de Render busca las líneas
-`[correo] Fallo al enviar ...` y `[error] POST /api/auth/registro ...`: incluyen `code`,
-`responseCode` y `response` del servidor SMTP sin exponer credenciales.
+Antes de desplegar, en Brevo:
 
-- `EAUTH` / `535`: credenciales rechazadas. En Gmail usa un **app password** y confirma que
-  `SMTP_FROM` sea el mismo correo autenticado (o un alias configurado).
-- `ETIMEDOUT` / `ECONNECTION`: el proveedor de correo está bloqueando la IP saliente de Render
-  o el puerto. Prueba con `SMTP_PORT=465` (con `secure` automático) o cambia de proveedor SMTP.
-- Un `messageId` en el log significa que el proveedor aceptó el mensaje: revisa entonces filtros
-  y reglas del buzón destino.
+1. Verifica el correo emisor en **Mis cuentas → Remitentes y dominios verificados** y pon esa
+   misma dirección en `EMAIL_FROM` (no hace falta dominio propio).
+2. Crea una clave de API con **Emails transaccionales → Todos** (permiso
+   `transactional.email:write`); el resto de categorías puede quedar en *Ninguno*.
+3. Copia la clave en `BREVO_API_KEY` en Render y reinicia el servicio.
+
+El registro espera como máximo ~10 s al proveedor; si el envío falla, la cuenta se revierte y el
+usuario recibe un mensaje para reintentar. En Render abre **Logs → Live tail** del servicio
+`psicogestion-backend` (no los logs de build) y busca:
+
+- `[correo] Transporte configurado: API HTTPS (Brevo)` al arrancar: confirma que se usa la API.
+- `[correo] ... enviado ... messageId=...`: Brevo aceptó el mensaje; revisa entonces filtros,
+  reglas y carpeta de spam del buzón destino.
+- `[correo] Fallo al enviar ...` y `[error] POST /api/auth/registro ...`: incluyen `code`,
+  `responseCode` y `response` sin exponer credenciales.
+
+Diagnóstico según el log:
+
+- `BREVO_401` / `HTTP 401`: clave inválida, revocada o sin permiso de correo transaccional.
+- `BREVO_429` / `HTTP 429`: excediste la cuota diaria del plan gratuito (~300 correos/día).
+- `code=BREVO_400` con `response=...`: revisa el mensaje: normalmente `EMAIL_FROM` no está
+  verificado o el destinatario fue rechazado.
+- `ETIMEDOUT` / `ECONNRESET` hacia `api.brevo.com`: problema de red; la API usa HTTPS/443, no SMTP.
 
 El `build` de la raíz compila el workspace del frontend. Para el servicio backend de Render
 se recomienda el Build Command anterior (`npm install`), ya que el backend es JavaScript y

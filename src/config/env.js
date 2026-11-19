@@ -94,6 +94,17 @@ function getExtraInstitutionalDomains() {
   return splitList(process.env.DOMINIOS_INSTITUCIONALES_EXTRA).map((domain) => domain.toLowerCase());
 }
 
+/**
+ * Transporte de correo:
+ *  - "api": HTTPS a Brevo (necesario en Render free, donde los puertos SMTP están bloqueados).
+ *  - "smtp": nodemailer para desarrollo y pruebas.
+ */
+function getEmailTransport() {
+  const configured = String(process.env.EMAIL_TRANSPORT || '').trim().toLowerCase();
+  if (configured === 'api' || configured === 'smtp') return configured;
+  return isProduction() ? 'api' : 'smtp';
+}
+
 function getTrustProxy() {
   const value = process.env.TRUST_PROXY;
   if (value === undefined || value === '') return false;
@@ -110,7 +121,14 @@ function assertEnvironment() {
     if (getAllowedOrigins().length === 0) {
       throw new Error('Define APP_URL o CORS_ORIGINS en producción.');
     }
-    if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    if (getEmailTransport() === 'api') {
+      if (!process.env.BREVO_API_KEY) {
+        throw new Error('Define BREVO_API_KEY en producción para enviar correos.');
+      }
+      if (!process.env.EMAIL_FROM) {
+        throw new Error('Define EMAIL_FROM (correo verificado en Brevo) en producción.');
+      }
+    } else if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
       throw new Error('Define SMTP_USER y SMTP_PASS en producción para enviar correos.');
     }
   }
@@ -123,6 +141,7 @@ module.exports = {
   getAllowedOriginPatterns,
   isAllowedOrigin,
   getRegistroModo,
+  getEmailTransport,
   getExtraInstitutionalDomains,
   getTrustProxy,
   assertEnvironment,

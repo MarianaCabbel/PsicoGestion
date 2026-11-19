@@ -23,13 +23,12 @@ services:
         sync: false
       - key: CORS_ORIGINS
         sync: false
-      - key: SMTP_HOST
-        value: smtp.gmail.com
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_USER
+      # Render free bloquea los puertos SMTP salientes: usamos la API HTTPS de Brevo.
+      - key: EMAIL_TRANSPORT
+        value: api
+      - key: BREVO_API_KEY
         sync: false
-      - key: SMTP_PASS
+      - key: EMAIL_FROM
         sync: false
-      - key: SMTP_FROM
-        sync: false
+      - key: EMAIL_FROM_NAME
+        value: PsicoGestión

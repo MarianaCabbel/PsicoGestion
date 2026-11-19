@@ -11,6 +11,7 @@ const {
 const {
   getJwtSecret,
   getRegistroModo,
+  getEmailTransport,
   assertEnvironment,
   getAllowedOrigins,
   isAllowedOrigin,
@@ -458,16 +459,58 @@ describe('Configuración de entorno', () => {
     });
   });
 
-  test('CP-UNI-33 en producción el arranque exige APP_URL/CORS y credenciales SMTP', () => {
-    const base = { NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(40) };
+  test('CP-UNI-33 EMAIL_TRANSPORT por defecto es api en producción y smtp en desarrollo', () => {
+    conEntorno({ NODE_ENV: 'production', EMAIL_TRANSPORT: undefined }, () => {
+      expect(getEmailTransport()).toBe('api');
+    });
+    conEntorno({ NODE_ENV: 'development', EMAIL_TRANSPORT: undefined }, () => {
+      expect(getEmailTransport()).toBe('smtp');
+    });
+    conEntorno({ NODE_ENV: 'development', EMAIL_TRANSPORT: ' API ' }, () => {
+      expect(getEmailTransport()).toBe('api');
+    });
+  });
 
-    conEntorno({ ...base, APP_URL: undefined, CORS_ORIGINS: undefined, SMTP_USER: 'u', SMTP_PASS: 'p' }, () => {
+  test('CP-UNI-33 en producción el arranque exige APP_URL/CORS y credenciales de Brevo', () => {
+    const base = { NODE_ENV: 'production', JWT_SECRET: 'x'.repeat(40) };
+    const api = {
+      EMAIL_TRANSPORT: 'api',
+      BREVO_API_KEY: 'clave-de-prueba',
+      EMAIL_FROM: 'no-reply@example.mx',
+    };
+
+    conEntorno({ ...base, APP_URL: undefined, CORS_ORIGINS: undefined, ...api }, () => {
       expect(() => assertEnvironment()).toThrow(/APP_URL o CORS_ORIGINS/);
     });
-    conEntorno({ ...base, APP_URL: 'https://app.example.mx', SMTP_USER: undefined, SMTP_PASS: undefined }, () => {
+    conEntorno(
+      { ...base, APP_URL: 'https://app.example.mx', ...api, BREVO_API_KEY: undefined },
+      () => {
+        expect(() => assertEnvironment()).toThrow(/BREVO_API_KEY/);
+      },
+    );
+    conEntorno(
+      { ...base, APP_URL: 'https://app.example.mx', ...api, EMAIL_FROM: undefined },
+      () => {
+        expect(() => assertEnvironment()).toThrow(/EMAIL_FROM/);
+      },
+    );
+    conEntorno({ ...base, APP_URL: 'https://app.example.mx', ...api }, () => {
+      expect(() => assertEnvironment()).not.toThrow();
+    });
+  });
+
+  test('CP-UNI-33 con EMAIL_TRANSPORT=smtp el arranque sigue exigiendo credenciales SMTP', () => {
+    const base = {
+      NODE_ENV: 'production',
+      JWT_SECRET: 'x'.repeat(40),
+      APP_URL: 'https://app.example.mx',
+      EMAIL_TRANSPORT: 'smtp',
+    };
+
+    conEntorno({ ...base, SMTP_USER: undefined, SMTP_PASS: undefined }, () => {
       expect(() => assertEnvironment()).toThrow(/SMTP_USER/);
     });
-    conEntorno({ ...base, APP_URL: 'https://app.example.mx', SMTP_USER: 'u', SMTP_PASS: 'p' }, () => {
+    conEntorno({ ...base, SMTP_USER: 'u', SMTP_PASS: 'p' }, () => {
       expect(() => assertEnvironment()).not.toThrow();
     });
   });
