@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { AppError } = require('./errors');
 
 // Sin credenciales SMTP no hay servidor de correo real: en desarrollo se usa un
 // transporte local y se imprime el código/enlace por consola.
@@ -15,6 +16,35 @@ const testOutbox = [];
 
 /** Control para simular una caída del SMTP en pruebas. */
 const testControl = { fallar: false, mensaje: null };
+
+/** Evita que un SMTP que no responde deje la petición de registro colgada. */
+const SMTP_TIMEOUT_MS = 10000;
+const SMTP_SOCKET_TIMEOUT_MS = 15000;
+
+function resumenSmtp(error) {
+  const partes = [
+    error?.code && `code=${error.code}`,
+    error?.responseCode && `responseCode=${error.responseCode}`,
+    error?.command && `command=${error.command}`,
+    error?.response && `response=${String(error.response).slice(0, 200)}`,
+  ].filter(Boolean);
+
+  return partes.join(' ') || error?.message || 'sin detalles';
+}
+
+/** Error accionable para el usuario, con el diagnóstico SMTP disponible en `details`. */
+function errorDeEnvio(label, cause) {
+  const error = new AppError(
+    `No se pudo enviar ${label}. Revisa la configuración SMTP del servidor e inténtalo de nuevo.`,
+    502,
+    resumenSmtp(cause),
+    null,
+    null,
+    true,
+  );
+  error.cause = cause;
+  return error;
+}
 
 const ASUNTOS_CITA = {
   confirmacion: 'Confirmación de cita - PsicoGestión',
@@ -48,25 +78,50 @@ async function createTransport() {
     return nodemailer.createTransport({ jsonTransport: true });
   }
 
+  const port = Number(process.env.SMTP_PORT || 587);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error(`SMTP_PORT no es válido: ${process.env.SMTP_PORT}`);
+  }
+
+  const secure =
+    process.env.SMTP_SECURE === undefined || process.env.SMTP_SECURE === ''
+      ? port === 465
+      : process.env.SMTP_SECURE === 'true';
+
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: Number(process.env.SMTP_PORT) === 465,
+    port,
+    secure,
+    // En producción sobre 587 el servidor debe ofrecer STARTTLS: nunca enviar
+    // credenciales en claro. En desarrollo se permite un SMTP local sin TLS.
+    requireTLS: isProduction && !secure,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_SOCKET_TIMEOUT_MS,
   });
 }
 
 async function sendOrFallback(transporter, options, label) {
   try {
-    return await transporter.sendMail(options);
-  } catch (error) {
+    const resultado = await transporter.sendMail(options);
+    if (!isTest) {
+      console.log(
+        `[correo] ${label} enviado a ${options.to} (messageId=${resultado.messageId || 'desconocido'}).`,
+      );
+    }
+    return resultado;
+  } catch (cause) {
+    // Siempre dejar constancia del motivo: en Render es la única forma de saber
+    // si fue autenticación, red o timeout.
+    console.error(`[correo] Fallo al enviar ${label} a ${options.to}: ${resumenSmtp(cause)}`);
+
     // En producción un fallo de correo debe ser visible; en desarrollo no debe
     // dejar al usuario sin camino porque el contenido ya quedó impreso arriba.
-    if (isProduction) throw error;
-    console.error(`[dev] No se pudo enviar ${label} a ${options.to}: ${error.message}`);
+    if (isProduction) throw errorDeEnvio(label, cause);
     return { messageId: 'dev-fallback', delivered: false };
   }
 }
@@ -75,6 +130,12 @@ async function sendVerificationEmail({ to, code }) {
   const transporter = await createTransport();
 
   if (isTest) {
+    if (testControl.fallar) {
+      throw errorDeEnvio(
+        'el correo de verificación',
+        new Error(testControl.mensaje || 'SMTP no disponible (simulado)'),
+      );
+    }
     testOutbox.push({ tipo: 'verificacion', to, code });
     return { ok: true, messageId: 'test-verification-message' };
   }
@@ -90,6 +151,8 @@ async function sendVerificationEmail({ to, code }) {
       from: process.env.SMTP_FROM || 'no-reply@psicogestion.com',
       to,
       subject: 'Código de verificación - PsicoGestión',
+      // La versión de texto mejora la entregabilidad en clientes que bloquean HTML.
+      text: `Tu código de verificación de PsicoGestión es ${code}. Vence en 10 minutos y se bloquea tras 3 intentos fallidos.`,
       html: `
       <h3>Verificación de cuenta</h3>
       <p>Tu código de verificación es:</p>

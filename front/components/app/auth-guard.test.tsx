@@ -33,7 +33,7 @@ describe('AuthGuard', () => {
 
   it('redirige al acceso cuando no hay sesión en una ruta protegida', async () => {
     sessionState.status = 'unauthenticated';
-    pathnameState.current = '/privacidad';
+    pathnameState.current = '/panel';
 
     render(
       <AuthGuard>

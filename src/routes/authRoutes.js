@@ -116,10 +116,21 @@ router.post('/registro', limitadores.registro, async (req, res, next) => {
       codigo_intentos: 0,
     });
 
-    await sendVerificationEmail({
-      to: user.correo_institucional,
-      code: codigo_verificacion,
-    });
+    try {
+      await sendVerificationEmail({
+        to: user.correo_institucional,
+        code: codigo_verificacion,
+      });
+    } catch (error) {
+      // Sin el correo la cuenta no sirve y dejarla creada obligaría al usuario a
+      // reintentar con el mismo correo y recibir un 409 de "ya existe".
+      try {
+        await user.destroy();
+      } catch (cleanupError) {
+        console.error(`[registro] No se pudo revertir la cuenta ${user.id}: ${cleanupError.message}`);
+      }
+      throw error;
+    }
 
     res.status(201).json({
       success: true,

@@ -5,7 +5,7 @@ const { normalizeEmail } = require('../../utils/authHelpers');
 /**
  * Decide si un correo puede crear una cuenta.
  * - Modo "dominio": cualquier correo institucional válido (desarrollo/pruebas).
- * - Modo "lista_blanca": solo correos activos en correos_autorizados. Es el
+ * - Modo "lista-blanca": solo correos activos en correos_autorizados. Es el
  *   modo por defecto en producción: poseer un buzón @uady.mx no basta para ver
  *   datos clínicos, hace falta que el SEAP haya autorizado a la persona.
  */

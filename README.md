@@ -65,9 +65,11 @@ JWT_SECRET=<mínimo 32 caracteres aleatorios>
 APP_URL=https://<tu-proyecto>.vercel.app
 CORS_ORIGINS=https://<tu-proyecto>.vercel.app
 CORS_ORIGIN_PATTERNS=https://<tu-proyecto>-*-<tu-equipo>.vercel.app
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
 SMTP_USER=<usuario SMTP>
 SMTP_PASS=<contraseña o app password SMTP>
-SMTP_FROM=no-reply@<tu-dominio>
+SMTP_FROM=<mismo correo del usuario SMTP o un alias autorizado>
 DB_AUTO_MIGRATE=false
 ```
 
@@ -89,6 +91,20 @@ NEXT_PUBLIC_API_URL=https://<tu-backend>.onrender.com
 Como el frontend y el backend viven en dominios distintos, el backend configura la cookie
 de sesión como `SameSite=None; Secure` en producción. No quites `credentials: include` de las
 peticiones del frontend.
+
+### Si no llegan los correos en producción
+
+El registro espera como máximo ~10 s al SMTP; si el envío falla, la cuenta se revierte y el
+usuario recibe un mensaje para reintentar. En los logs de Render busca las líneas
+`[correo] Fallo al enviar ...` y `[error] POST /api/auth/registro ...`: incluyen `code`,
+`responseCode` y `response` del servidor SMTP sin exponer credenciales.
+
+- `EAUTH` / `535`: credenciales rechazadas. En Gmail usa un **app password** y confirma que
+  `SMTP_FROM` sea el mismo correo autenticado (o un alias configurado).
+- `ETIMEDOUT` / `ECONNECTION`: el proveedor de correo está bloqueando la IP saliente de Render
+  o el puerto. Prueba con `SMTP_PORT=465` (con `secure` automático) o cambia de proveedor SMTP.
+- Un `messageId` en el log significa que el proveedor aceptó el mensaje: revisa entonces filtros
+  y reglas del buzón destino.
 
 El `build` de la raíz compila el workspace del frontend. Para el servicio backend de Render
 se recomienda el Build Command anterior (`npm install`), ya que el backend es JavaScript y

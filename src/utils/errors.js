@@ -7,14 +7,23 @@ class AppError extends Error {
    * @param {*} details Información técnica (solo se expone en desarrollo).
    * @param {Object<string,string>} fieldErrors Errores por campo { campo: mensaje }.
    * @param {Object} meta Propiedades extra que se incluyen en la respuesta.
+   * @param {boolean} expose Si el mensaje es seguro para mostrar en producción.
    */
-  constructor(message, statusCode = 400, details = null, fieldErrors = null, meta = null) {
+  constructor(
+    message,
+    statusCode = 400,
+    details = null,
+    fieldErrors = null,
+    meta = null,
+    expose = false,
+  ) {
     super(message);
     this.name = 'AppError';
     this.statusCode = statusCode;
     this.details = details;
     this.fieldErrors = fieldErrors;
     this.meta = meta;
+    this.expose = expose;
   }
 }
 
@@ -43,8 +52,9 @@ const errorHandler = (err, req, res, _next) => {
     // Nunca se registra el cuerpo de la petición: puede contener datos personales.
     console.error(`[error] ${req.method} ${req.originalUrl}: ${err.stack || err.message}`);
 
-    // El 503 de conexión lleva mensaje accionable para el usuario; no se genériciza.
-    if (process.env.NODE_ENV === 'production' && !esErrorDeConexion) {
+    // Los errores 503 de conexión y los marcados como `expose` llevan mensaje
+    // accionable para el usuario; el resto se genériciza en producción.
+    if (process.env.NODE_ENV === 'production' && !esErrorDeConexion && !err.expose) {
       message = 'Error interno del servidor.';
     }
   }

@@ -73,7 +73,9 @@ export default function RegistrationPage() {
         redirectOnUnauthorized: false,
       });
       toast.success('Cuenta creada. Revisa tu correo para obtener el código de verificación.');
-      router.push(`/verificar?correo=${encodeURIComponent(values.correo_institucional)}`);
+      router.push(
+        `/verificar?correo=${encodeURIComponent(values.correo_institucional)}&enviado=1`,
+      );
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'No se pudo crear la cuenta.');
     } finally {

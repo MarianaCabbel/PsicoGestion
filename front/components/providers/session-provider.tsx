@@ -1,15 +1,18 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { api, ApiError } from '@/lib/api';
+import { isPublicRoute } from '@/lib/public-routes';
 
 export type SessionUser = {
   id: number;
@@ -33,8 +36,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [status, setStatus] = useState<SessionStatus>('loading');
   const [error, setError] = useState<string | null>(null);
+  const sessionChecked = useRef(false);
+  const pathname = usePathname();
 
   const refresh = useCallback(async () => {
+    sessionChecked.current = true;
     setStatus('loading');
     setError(null);
     try {
@@ -61,8 +67,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    // En rutas públicas no hay sesión que validar: consultar /api/auth/me sólo
+    // produciría un 401 esperado, ralentizando la primera carga de la aplicación.
+    if (isPublicRoute(pathname ?? '')) {
+      setStatus((current) => (current === 'loading' ? 'unauthenticated' : current));
+      return;
+    }
+
+    // Una sola comprobación por sesión, aunque se navegue entre rutas privadas.
+    if (!sessionChecked.current) void refresh();
+  }, [pathname, refresh]);
 
   const value = useMemo(
     () => ({ user, status, error, refresh, logout }),

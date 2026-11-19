@@ -5,13 +5,7 @@ import { useEffect, type ReactNode } from 'react';
 import { useSession } from '@/components/providers/session-provider';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-
-/** Rutas a las que se puede entrar sin sesión iniciada. */
-const PUBLIC_ROUTES = ['/login', '/registro', '/recuperar', '/reset-password', '/verificar'];
-
-export function isPublicRoute(pathname: string) {
-  return PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
-}
+import { isPublicRoute } from '@/lib/public-routes';
 
 /**
  * Puerta de acceso del frontend: cualquier ruta que no sea pública exige una sesión válida.

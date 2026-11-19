@@ -2,6 +2,7 @@ const request = require('supertest');
 const { User } = require('../src/config/database');
 const app = require('../src/app');
 const { VALID_EMAIL, useTestDatabase, register } = require('./helpers');
+const { testControl } = require('../src/utils/email');
 
 function wrongCodeFor(stored) {
   return String((Number(stored) + 1) % 1000000).padStart(6, '0');
@@ -9,6 +10,21 @@ function wrongCodeFor(stored) {
 
 describe('Verificación de correo', () => {
   useTestDatabase();
+
+  test('un fallo al enviar el correo no deja una cuenta huérfana y permite reintentar', async () => {
+    testControl.fallar = true;
+    testControl.mensaje = 'SMTP no disponible (simulado)';
+
+    const fallido = await register(app);
+
+    expect(fallido.status).toBe(502);
+    expect(fallido.body.message).toMatch(/No se pudo enviar el correo de verificación/);
+    expect(await User.findOne({ where: { correo_institucional: VALID_EMAIL } })).toBeNull();
+
+    testControl.fallar = false;
+    const reintento = await register(app);
+    expect(reintento.status).toBe(201);
+  });
 
   test('CP-UNI-07 rechaza un código distinto al enviado y no completa el registro', async () => {
     await register(app);

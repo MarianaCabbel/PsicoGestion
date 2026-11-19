@@ -13,14 +13,23 @@ const CODE_LIFETIME_SECONDS = 10 * 60;
 export default function VerificationPage() {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState(CODE_LIFETIME_SECONDS);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+  // El contador sólo tiene sentido cuando sabemos que se pidió un código.
+  const [codeSent, setCodeSent] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    setEmail(new URLSearchParams(window.location.search).get('correo') ?? '');
+    const params = new URLSearchParams(window.location.search);
+    setEmail(params.get('correo') ?? '');
+    setCodeSent(params.get('enviado') === '1');
   }, []);
 
   useEffect(() => {
+    if (!codeSent) {
+      setSecondsLeft(0);
+      return;
+    }
+
     const key = 'psicogestion-verification-expiration';
     const stored = window.sessionStorage.getItem(key);
     const expiration = stored ? Number(stored) : Date.now() + CODE_LIFETIME_SECONDS * 1000;
@@ -33,7 +42,7 @@ export default function VerificationPage() {
       if (remaining === 0) window.clearInterval(timer);
     }, 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [codeSent]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -64,6 +73,7 @@ export default function VerificationPage() {
       const expiration = Date.now() + CODE_LIFETIME_SECONDS * 1000;
       window.sessionStorage.setItem('psicogestion-verification-expiration', String(expiration));
       setSecondsLeft(CODE_LIFETIME_SECONDS);
+      setCodeSent(true);
       toast.success('Si la cuenta está pendiente, enviamos un código nuevo.');
     } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : 'No se pudo solicitar otro código.');
@@ -81,7 +91,11 @@ export default function VerificationPage() {
         </Link>
         <p className="auth-eyebrow">Un paso más</p>
         <h1>Verifica tu correo</h1>
-        <p>Escribe el código de 6 dígitos que enviamos a tu correo institucional.</p>
+        <p>
+          {codeSent
+            ? 'Escribe el código de 6 dígitos que enviamos a tu correo institucional.'
+            : 'Solicita un código de 6 dígitos para verificar tu correo institucional.'}
+        </p>
       </CardHeader>
       <CardContent>
         <form className="auth-form" onSubmit={(event) => void submit(event)}>
@@ -107,9 +121,11 @@ export default function VerificationPage() {
             value={code}
           />
           <p className="verification-countdown" aria-live="polite">
-            {secondsLeft > 0
-              ? `El código vence en ${minutes}:${seconds}`
-              : 'El código venció. Solicita uno nuevo.'}
+            {!codeSent
+              ? '¿No recibiste el código? Revisa también la carpeta de spam y solicita uno nuevo.'
+              : secondsLeft > 0
+                ? `El código vence en ${minutes}:${seconds}`
+                : 'El código venció. Solicita uno nuevo.'}
           </p>
           <Button className="auth-submit" disabled={busy} type="submit">
             {busy ? 'Verificando…' : 'Verificar cuenta'}
